@@ -33,6 +33,8 @@
 
 #include "TetherController.h"
 
+#define MAX_DNS_TRIALS 3
+
 TetherController::TetherController() {
     mInterfaces = new InterfaceCollection();
     mDnsForwarders = new NetAddressCollection();
@@ -335,18 +337,63 @@ int TetherController::setDnsForwarders(char **servers, int numServers) {
     return 0;
 }
 
+int TetherController::resetDnsForwarders() {
+    int numServers = mDnsForwarders == NULL ? 0 : (int) mDnsForwarders->size();
+
+    char daemonCmd[MAX_CMD_SIZE];
+    memset(daemonCmd, '\0' , sizeof(daemonCmd));
+
+    if (mDaemonFd == -1)
+        return -1;
+
+    strcpy(daemonCmd, "update_dns");
+    int cmdLen = strlen(daemonCmd);
+
+    if(numServers > 0) {
+        NetAddressCollection::iterator it;
+        for (it = mDnsForwarders->begin(); it != mDnsForwarders->end(); ++it) {
+            cmdLen += strlen(inet_ntoa(*it));
+            if (cmdLen + 2 >= sizeof(daemonCmd)) {
+                LOGD("(resetDnsForwarders) Too many DNS servers listed");
+                break;
+            } else {
+                strncat(daemonCmd, ":", 1 );
+                strncat(daemonCmd, inet_ntoa(*it), sizeof(daemonCmd) - strlen(daemonCmd) + 1);
+            }
+        }
+    }
+
+    LOGD("(resetDnsForwarders) Sending update msg to dnsmasq [%s]", daemonCmd);
+    if (write(mDaemonFd, daemonCmd, strlen(daemonCmd) +1) < 0) {
+        LOGE("(resetDnsForwarders) Failed to send update command to dnsmasq (%s)", strerror(errno));
+        mDnsForwarders->clear();
+        return -1;
+    }
+
+    return 0;
+}
+
 NetAddressCollection *TetherController::getDnsForwarders() {
     return mDnsForwarders;
 }
 
 int TetherController::tetherInterface(const char *interface) {
     mInterfaces->push_back(strdup(interface));
-
     /* Restart DHCP server to take in account the new tethered interface*/
     if(mDaemonPid) {
         mIntTetherRestart = 1;
         stopTethering();
         startTethering(mNum_addrs, mAddrs);
+        usleep(1000);
+        for (int i=0; i<MAX_DNS_TRIALS; i++) {
+            if(resetDnsForwarders()==-1) {
+                LOGE("Failed to reset Dns Forwarders (trial %d/%d) ",i,MAX_DNS_TRIALS);
+                usleep(1000);
+            } else {
+                break;
+            }
+        }
+
     }
 
     return 0;
@@ -354,7 +401,6 @@ int TetherController::tetherInterface(const char *interface) {
 
 int TetherController::untetherInterface(const char *interface) {
     InterfaceCollection::iterator it;
-
     for (it = mInterfaces->begin(); it != mInterfaces->end(); ++it) {
         if (!strcmp(interface, *it)) {
             free(*it);
@@ -364,6 +410,15 @@ int TetherController::untetherInterface(const char *interface) {
                 mIntTetherRestart = 1;
                 stopTethering();
                 startTethering(mNum_addrs, mAddrs);
+                usleep(1000);
+                for (int i=0; i<MAX_DNS_TRIALS; i++) {
+                    if(resetDnsForwarders()==-1) {
+                        LOGE("Failed to reset Dns Forwarders (trial %d/%d) ",i,MAX_DNS_TRIALS);
+                        usleep(1000);
+                    } else {
+                        break;
+                    }
+                }
             }
 
             return 0;

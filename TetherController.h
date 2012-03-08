@@ -51,6 +51,7 @@ public:
 
     int setDnsForwarders(char **servers, int numServers);
     NetAddressCollection *getDnsForwarders();
+    int resetDnsForwarders();
 
     int tetherInterface(const char *interface);
     int untetherInterface(const char *interface);

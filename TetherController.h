@@ -29,6 +29,9 @@ class TetherController {
     NetAddressCollection *mDnsForwarders;
     pid_t                 mDaemonPid;
     int                   mDaemonFd;
+    struct in_addr* mAddrs;
+    int mNum_addrs;
+    int mIntTetherRestart;
 
 public:
     TetherController();

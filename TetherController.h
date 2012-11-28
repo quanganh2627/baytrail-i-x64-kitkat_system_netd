@@ -30,6 +30,9 @@ class TetherController {
     pid_t                 mDaemonPid;
     pid_t                 mDhcpcdPid;
     int                   mDaemonFd;
+    struct in_addr* mAddrs;
+    int mNum_addrs;
+    int mIntTetherRestart;
 
 public:
     TetherController();

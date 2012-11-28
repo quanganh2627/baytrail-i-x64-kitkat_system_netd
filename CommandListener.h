@@ -30,6 +30,9 @@
 #include "ResolverController.h"
 #include "SecondaryTableController.h"
 #include "FirewallController.h"
+#ifdef INTEL_WIDI
+#include "WidiConnectivity.h"
+#endif
 
 class CommandListener : public FrameworkListener {
     static TetherController *sTetherCtrl;
@@ -42,6 +45,9 @@ class CommandListener : public FrameworkListener {
     static ResolverController *sResolverCtrl;
     static SecondaryTableController *sSecondaryTableCtrl;
     static FirewallController *sFirewallCtrl;
+#ifdef INTEL_WIDI
+    static WidiConnectivity *sWidiCtrl;
+#endif
 
 public:
     CommandListener();
@@ -136,6 +142,14 @@ private:
         int sendGenericOkFail(SocketClient *cli, int cond);
         static FirewallRule parseRule(const char* arg);
     };
+#ifdef INTEL_WIDI
+    class WidiCmd : public NetdCommand {
+    public:
+        WidiCmd();
+        virtual ~WidiCmd() {}
+        int runCommand(SocketClient *c, int argc, char ** argv);
+    };
+#endif
 };
 
 #endif

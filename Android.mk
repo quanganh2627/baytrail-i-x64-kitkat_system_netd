@@ -24,6 +24,11 @@ LOCAL_SRC_FILES:=                                      \
                   logwrapper.c                         \
                   main.cpp                             \
 
+ifeq ($(INTEL_WIDI), true)
+LOCAL_SRC_FILES+= WidiConnectivity.cpp
+LOCAL_CFLAGS += -DINTEL_WIDI
+endif
+
 ifeq ($(BOARD_HAVE_TI12XX),true)
    LOCAL_SRC_FILES += SoftapControllerTI.cpp
 else
@@ -42,9 +47,9 @@ LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
 
 ifeq ($(BOARD_HAVE_TI12XX),true)
    LOCAL_C_INCLUDES += external/libnl-headers
-   LOCAL_CFLAGS := -DCONFIG_LIBNL20 -Werror=format
+   LOCAL_CFLAGS += -DCONFIG_LIBNL20 -Werror=format
 else
-   LOCAL_CFLAGS := -Werror=format
+   LOCAL_CFLAGS += -Werror=format
 endif
 
 LOCAL_SHARED_LIBRARIES := libstlport libsysutils libcutils libnetutils \

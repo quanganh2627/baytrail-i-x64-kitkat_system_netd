@@ -19,11 +19,15 @@ LOCAL_SRC_FILES:=                                      \
                   PppController.cpp                    \
                   ResolverController.cpp               \
                   SecondaryTableController.cpp         \
-                  SoftapController.cpp                 \
                   TetherController.cpp                 \
                   oem_iptables_hook.cpp                \
                   main.cpp                             \
 
+ifeq ($(BOARD_HAVE_TI12XX),true)
+   LOCAL_SRC_FILES += SoftapControllerTI.cpp
+else
+   LOCAL_SRC_FILES += SoftapController.cpp
+endif
 
 LOCAL_MODULE:= netd
 
@@ -33,13 +37,22 @@ LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
                     external/stlport/stlport \
                     bionic \
                     bionic/libc/private \
-                    $(call include-path-for, libhardware_legacy)/hardware_legacy
+                    $(call include-path-for, libhardware_legacy)/hardware_legacy \
 
-LOCAL_CFLAGS := -Werror=format
+ifeq ($(BOARD_HAVE_TI12XX),true)
+   LOCAL_C_INCLUDES += external/libnl-headers
+   LOCAL_CFLAGS := -DCONFIG_LIBNL20 -Werror=format
+else
+   LOCAL_CFLAGS := -Werror=format
+endif
 
 LOCAL_SHARED_LIBRARIES := libstlport libsysutils liblog libcutils libnetutils \
                           libcrypto libhardware_legacy libmdnssd libdl \
                           liblogwrap
+
+ifeq ($(BOARD_HAVE_TI12XX),true)
+   LOCAL_STATIC_LIBRARIES := libnl_2
+endif
 
 include $(BUILD_EXECUTABLE)
 

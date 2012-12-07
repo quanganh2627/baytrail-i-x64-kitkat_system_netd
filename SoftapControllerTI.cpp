@@ -448,9 +448,16 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
        return -1;
     }
 
-    FILE* fp2 = fopen(HOSTAPD_CONF_FILE, "w");
+    int fd = open(HOSTAPD_CONF_FILE, O_CREAT | O_TRUNC | O_WRONLY | O_NOFOLLOW, 0660);
+    if (fd < 0) {
+       LOGE("Softap set - hostapd.conf file read failed");
+       fclose(fp);
+       return -1;
+    }
+    FILE* fp2 = fdopen(fd, "w");
     if (!fp2) {
        LOGE("Softap set - hostapd.conf file read failed");
+       close(fd);
        fclose(fp);
        return -1;
     }
@@ -549,22 +556,25 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
     fputs(bufptr, fp2);
 
     fclose(fp);
-    fclose(fp2);
 
 	/* Note: apparently open can fail to set permissions correctly at times */
-    if (chmod(HOSTAPD_CONF_FILE, 0660) < 0) {
+    if (fchmod(fd, 0660) < 0) {
         ALOGE("Error changing permissions of %s to 0660: %s",
                 HOSTAPD_CONF_FILE, strerror(errno));
+        fclose(fp2);
         unlink(HOSTAPD_CONF_FILE);
         return -1;
     }
 
-    if (chown(HOSTAPD_CONF_FILE, AID_SYSTEM, AID_WIFI) < 0) {
+    if (fchown(fd, AID_SYSTEM, AID_WIFI) < 0) {
         ALOGE("Error changing group ownership of %s to %d: %s",
                 HOSTAPD_CONF_FILE, AID_WIFI, strerror(errno));
+        fclose(fp2);
         unlink(HOSTAPD_CONF_FILE);
         return -1;
     }
+
+    fclose(fp2);
 
     memcpy(mBackupBuf,buf,sizeof(buf));
 

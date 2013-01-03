@@ -127,6 +127,12 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
 
         /* Copy the new addrs*/
         mAddrs = (struct in_addr*)malloc(sizeof (struct in_addr*) * num_addrs);
+        if (!mAddrs) {
+            ALOGE("malloc failed (%s)", strerror(errno));
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return -1;
+        }
         mNum_addrs = num_addrs;
         for (int addrIndex=0; addrIndex < mNum_addrs;) {
             mAddrs[addrIndex] = addrs[addrIndex];
@@ -366,7 +372,8 @@ int TetherController::resetDnsForwarders() {
     LOGD("(resetDnsForwarders) Sending update msg to dnsmasq [%s]", daemonCmd);
     if (write(mDaemonFd, daemonCmd, strlen(daemonCmd) +1) < 0) {
         LOGE("(resetDnsForwarders) Failed to send update command to dnsmasq (%s)", strerror(errno));
-        mDnsForwarders->clear();
+        if (mDnsForwarders != NULL)
+            mDnsForwarders->clear();
         return -1;
     }
 

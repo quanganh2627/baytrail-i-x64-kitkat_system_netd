@@ -30,6 +30,7 @@ LOCAL_SRC_FILES:=                                      \
                   oem_iptables_hook.cpp                \
                   main.cpp                             \
 LOCAL_SRC_FILES += SoftapControllerTI.cpp
+LOCAL_CFLAGS += -DSOFTAPTI
 
 LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
                     external/mdnsresponder/mDNSShared \

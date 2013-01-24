@@ -53,9 +53,6 @@ InterfaceController *CommandListener::sInterfaceCtrl = NULL;
 ResolverController *CommandListener::sResolverCtrl = NULL;
 SecondaryTableController *CommandListener::sSecondaryTableCtrl = NULL;
 FirewallController *CommandListener::sFirewallCtrl = NULL;
-#ifdef INTEL_WIDI
-WidiConnectivity *CommandListener::sWidiCtrl = NULL;
-#endif
 
 /**
  * List of module chains to be created, along with explicit ordering. ORDERING
@@ -139,9 +136,6 @@ CommandListener::CommandListener() :
     registerCmd(new IdletimerControlCmd());
     registerCmd(new ResolverCmd());
     registerCmd(new FirewallCmd());
-#ifdef INTEL_WIDI
-    registerCmd(new WidiCmd());
-#endif
 
     if (!sSecondaryTableCtrl)
         sSecondaryTableCtrl = new SecondaryTableController();
@@ -163,10 +157,6 @@ CommandListener::CommandListener() :
         sFirewallCtrl = new FirewallController();
     if (!sInterfaceCtrl)
         sInterfaceCtrl = new InterfaceController();
-#ifdef INTEL_WIDI
-    if (!sWidiCtrl)
-        sWidiCtrl = new WidiConnectivity();
-#endif
 
     /*
      * This is the only time we touch top-level chains in iptables; controllers
@@ -1449,54 +1439,3 @@ int CommandListener::FirewallCmd::runCommand(SocketClient *cli, int argc,
     cli->sendMsg(ResponseCode::CommandSyntaxError, "Unknown command", false);
     return 0;
 }
-
-#ifdef INTEL_WIDI
-
-CommandListener::WidiCmd::WidiCmd() :
-        NetdCommand("widi") {
-}
-
-int CommandListener::WidiCmd::runCommand(SocketClient *cli, int argc, char **argv) {
-    int rc = 0;
-
-    if (argc < 2) {
-        cli->sendMsg(ResponseCode::CommandSyntaxError, "Widi Missing argument", false);
-        return 0;
-    }
-
-    if (!strcmp(argv[1], "dhcp")) {
-        if (!strcmp(argv[2], "start"))
-            if (argc == 5) {
-                in_addr addr;
-
-                if (!inet_aton(argv[4], &addr)) {
-                    cli->sendMsg(ResponseCode::CommandParameterError, "Widi Invalid IP address", false);
-                    return 0;
-                }
-
-                rc = sWidiCtrl->startDhcp(argv[3], 1, &addr);
-            }
-            else
-                /* Syntax:  dhcp <start> <interface> <Adapter IP addr> */
-                cli->sendMsg(ResponseCode::CommandSyntaxError, "Widi Missing argument", false);
-
-        else if (!strcmp(argv[2], "stop"))
-            rc = sWidiCtrl->stopDhcp();
-        else
-            cli->sendMsg(ResponseCode::CommandSyntaxError, "Widi Unknown argument", false);
-
-    }
-    else {
-        cli->sendMsg(ResponseCode::CommandSyntaxError, "Widi Unknown cmd", false);
-        return 0;
-    }
-
-    if (!rc) {
-        cli->sendMsg(ResponseCode::CommandOkay, "Widi operation succeeded", false);
-    } else {
-        cli->sendMsg(ResponseCode::OperationFailed, "Widi operation failed", true);
-    }
-
-    return 0;
-}
-#endif

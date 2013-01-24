@@ -32,10 +32,6 @@ LOCAL_SRC_FILES:=                                      \
                   main.cpp                             \
 LOCAL_SRC_FILES += SoftapControllerTI.cpp
 LOCAL_CFLAGS += -DSOFTAPTI
-ifeq ($(INTEL_WIDI), true)
-LOCAL_SRC_FILES += WidiConnectivity.cpp
-LOCAL_CFLAGS += -DINTEL_WIDI
-endif
 
 LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
                     external/mdnsresponder/mDNSShared \
@@ -89,12 +85,6 @@ LOCAL_SRC_FILES:=                                      \
                   main.cpp                             \
 
 LOCAL_SRC_FILES += SoftapController.cpp
-
-ifeq ($(INTEL_WIDI), true)
-LOCAL_SRC_FILES+= WidiConnectivity.cpp
-LOCAL_CFLAGS += -DINTEL_WIDI
-endif
-
 
 LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
                     external/mdnsresponder/mDNSShared \

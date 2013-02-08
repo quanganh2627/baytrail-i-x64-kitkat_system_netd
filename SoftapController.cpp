@@ -51,6 +51,42 @@ SoftapController::SoftapController()
 SoftapController::~SoftapController() {
 }
 
+int SoftapController::startDriver(char *iface) {
+    int ret;
+
+    ALOGD("Softap driver start");
+
+    if (!iface || (iface[0] == '\0')) {
+        ALOGE("Softap driver start - wrong interface");
+        return -EINVAL;
+    }
+
+    ifc_init();
+    ret = ifc_up(iface);
+    ifc_close();
+
+    usleep(AP_DRIVER_START_DELAY);
+
+    return ret;
+}
+
+int SoftapController::stopDriver(char *iface) {
+    int ret;
+
+    ALOGD("Softap driver stop");
+
+    if (!iface || (iface[0] == '\0')) {
+        ALOGE("Softap driver stop - wrong interface");
+	return -EINVAL;
+    }
+
+    ifc_init();
+    ret = ifc_down(iface);
+    ifc_close();
+
+    return ret;
+}
+
 int SoftapController::startSoftap() {
     pid_t pid = 1;
 
@@ -186,28 +222,27 @@ int SoftapController::fwReloadSoftap(int argc, char *argv[])
 {
     int i = 0;
     char *fwpath = NULL;
+    char *iface;
 
     if (argc < 4) {
         ALOGE("SoftAP fwreload is missing arguments. Please use: softap <wlan iface> <AP|P2P|STA>");
         return ResponseCode::CommandSyntaxError;
     }
 
-    if (strcmp(argv[3], "AP") == 0) {
-        fwpath = (char *)wifi_get_fw_path(WIFI_GET_FW_PATH_AP);
-    } else if (strcmp(argv[3], "P2P") == 0) {
-        fwpath = (char *)wifi_get_fw_path(WIFI_GET_FW_PATH_P2P);
-    } else if (strcmp(argv[3], "STA") == 0) {
-        fwpath = (char *)wifi_get_fw_path(WIFI_GET_FW_PATH_STA);
-    }
-    if (!fwpath)
-        return ResponseCode::CommandParameterError;
-    if (wifi_change_fw_path((const char *)fwpath)) {
-        ALOGE("Softap fwReload failed");
-        return ResponseCode::OperationFailed;
-    }
-    else {
-        ALOGD("Softap fwReload - Ok");
-    }
+    iface = argv[2];
+    stopDriver(iface);
+
+    wifi_switch_driver_mode(WIFI_AP_MODE);
+
+    /**
+     * Sleep to workaround issue in the brcm driver which is tracked by BZ
+     * 85864. To be removed as soon as BZ85864 is fixed.
+     */
+    sleep(2);
+    startDriver(iface);
+
+    ALOGD("Softap fwReload - done");
+
     return ResponseCode::SoftapStatusResult;
 }
 

@@ -55,6 +55,42 @@ SoftapController::~SoftapController() {
         close(mSock);
 }
 
+int SoftapController::startDriver(char *iface) {
+    int ret;
+
+    ALOGD("Softap driver start");
+
+    if (!iface || (iface[0] == '\0')) {
+        ALOGE("Softap driver start - wrong interface");
+        return -EINVAL;
+    }
+
+    ifc_init();
+    ret = ifc_up(iface);
+    ifc_close();
+
+    usleep(AP_DRIVER_START_DELAY);
+
+    return ret;
+}
+
+int SoftapController::stopDriver(char *iface) {
+    int ret;
+
+    ALOGD("Softap driver stop");
+
+    if (!iface || (iface[0] == '\0')) {
+        ALOGE("Softap driver stop - wrong interface");
+	return -EINVAL;
+    }
+
+    ifc_init();
+    ret = ifc_down(iface);
+    ifc_close();
+
+    return ret;
+}
+
 int SoftapController::startSoftap() {
     pid_t pid = 1;
     int ret = 0;
@@ -225,7 +261,7 @@ void SoftapController::generatePsk(char *ssid, char *passphrase, char *psk_str) 
  */
 int SoftapController::fwReloadSoftap(int argc, char *argv[])
 {
-    int ret, i = 0;
+    int i = 0;
     char *iface;
     char *fwpath;
 
@@ -239,24 +275,20 @@ int SoftapController::fwReloadSoftap(int argc, char *argv[])
     }
 
     iface = argv[2];
+    stopDriver(iface);
 
-    if (strcmp(argv[3], "AP") == 0) {
-        fwpath = (char *)wifi_get_fw_path(WIFI_GET_FW_PATH_AP);
-    } else if (strcmp(argv[3], "P2P") == 0) {
-        fwpath = (char *)wifi_get_fw_path(WIFI_GET_FW_PATH_P2P);
-    } else {
-        fwpath = (char *)wifi_get_fw_path(WIFI_GET_FW_PATH_STA);
-    }
-    if (!fwpath)
-        return -1;
-    ret = wifi_change_fw_path((const char *)fwpath);
-    if (ret) {
-        ALOGE("Softap fwReload - failed: %d", ret);
-    }
-    else {
-        ALOGD("Softap fwReload - Ok");
-    }
-    return ret;
+    wifi_switch_driver_mode(WIFI_AP_MODE);
+
+    /**
+     * Sleep to workaround issue in the brcm driver which is tracked by BZ
+     * 85864. To be removed as soon as BZ85864 is fixed.
+     */
+    sleep(2);
+    startDriver(iface);
+
+    ALOGD("Softap fwReload - done");
+
+    return 0;
 }
 
 int SoftapController::clientsSoftap(char **retbuf)

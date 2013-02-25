@@ -163,7 +163,8 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
             close(pipefd[0]);
         }
 
-        int num_processed_args = 9 + mInterfaces->size() + (num_addrs/2) + 1; // 1 null for termination
+        /* Wifi_Hotspot : dhcp-script is enabled */
+        int num_processed_args = 10 + mInterfaces->size() + (num_addrs/2) + 1; // 1 null for termination
         char **args = (char **)malloc(sizeof(char *) * num_processed_args);
         args[num_processed_args - 1] = NULL;
         args[0] = (char *)"/system/bin/dnsmasq";
@@ -173,11 +174,12 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
         // TODO: pipe through metered status from ConnService
         args[4] = (char *)"--dhcp-option-force=43,ANDROID_METERED";
         args[5] = (char *)"--pid-file";
-        args[6] = (char *)"-z";
-        args[7] = (char *)"-Ilo";
-        args[8] = (char *)"";
+        args[6] = (char *)"--dhcp-script=/system/bin/dhcp_lease_evt.sh";
+        args[7] = (char *)"-z";
+        args[8] = (char *)"-Ilo";
+        args[9] = (char *)"";
 
-        int nextArg = 9;
+        int nextArg = 10;
 
          /*Activate the DHCP server only on tethered interfaces*/
         InterfaceCollection *ilist = mInterfaces;

@@ -23,11 +23,7 @@
 #include "TetherController.h"
 #include "NatController.h"
 #include "PppController.h"
-#ifdef SOFTAPTI
-#include "SoftapControllerTI.h"
-#else
 #include "SoftapController.h"
-#endif
 #include "BandwidthController.h"
 #include "IdletimerController.h"
 #include "InterfaceController.h"

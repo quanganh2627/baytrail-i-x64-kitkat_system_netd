@@ -249,7 +249,12 @@ int SoftapController::fwReloadSoftap(int argc, char *argv[])
     iface = argv[2];
     stopDriver(iface);
 
-    wifi_switch_driver_mode(WIFI_AP_MODE);
+    if (!strcmp("STA", argv[3]))
+        wifi_switch_driver_mode(WIFI_STA_MODE); /* which is STA + P2P... */
+    else if (!strcmp("AP", argv[3]))
+        wifi_switch_driver_mode(WIFI_AP_MODE);
+    else if (!strcmp("P2P", argv[3]))
+        wifi_switch_driver_mode(WIFI_P2P_MODE);
 
     /**
      * Sleep to workaround issue in the brcm driver which is tracked by BZ

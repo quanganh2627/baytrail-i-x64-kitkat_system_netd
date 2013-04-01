@@ -37,6 +37,7 @@ LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
                     external/openssl/include \
                     external/stlport/stlport \
                     bionic \
+                    system/core/logwrapper/include/ \
                     bionic/libc/private \
                     $(call include-path-for, libhardware_legacy)/hardware_legacy \
 
@@ -46,7 +47,7 @@ LOCAL_CFLAGS += -DCONFIG_LIBNL20 -Werror=format
 
 
 LOCAL_SHARED_LIBRARIES := libstlport libsysutils liblog libcutils libnetutils \
-                          libcrypto libhardware_legacy libmdnssd libdl
+                          libcrypto libhardware_legacy libmdnssd libdl liblogwrap
 
 LOCAL_STATIC_LIBRARIES := libnl_2
 
@@ -89,6 +90,7 @@ LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
                     external/mdnsresponder/mDNSShared \
                     external/openssl/include \
                     external/stlport/stlport \
+                    system/core/logwrapper/include/ \
                     bionic \
                     bionic/libc/private \
                     $(call include-path-for, libhardware_legacy)/hardware_legacy \

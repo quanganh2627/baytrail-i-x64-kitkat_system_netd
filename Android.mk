@@ -58,9 +58,8 @@ else
 ########################################
 
 include $(CLEAR_VARS)
-LOCAL_MODULE:= netd.bcm
+LOCAL_MODULE:= netd
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_STEM := netd
 LOCAL_CFLAGS :=
 LOCAL_SRC_FILES:=                                      \
                   BandwidthController.cpp              \

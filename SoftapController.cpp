@@ -43,6 +43,13 @@
 
 #include "SoftapController.h"
 
+/* for ANDROID_SOCKET_* */
+#include <cutils/sockets.h>
+#include <private/android_filesystem_config.h>
+#include <linux/un.h>
+
+static const char *ENV_SOCKET[32];
+
 static const char HOSTAPD_CONF_FILE[]    = "/data/misc/wifi/hostapd.conf";
 static const char HOSTAPD_BIN_FILE[]    = "/system/bin/hostapd";
 
@@ -90,6 +97,7 @@ int SoftapController::stopDriver(char *iface) {
 
 int SoftapController::startSoftap() {
     pid_t pid = 1;
+    int fd;
 
     if (mPid) {
         ALOGE("SoftAP is already running");
@@ -103,9 +111,15 @@ int SoftapController::startSoftap() {
 
     if (!pid) {
         ensure_entropy_file_exists();
-        if (execl(HOSTAPD_BIN_FILE, HOSTAPD_BIN_FILE,
+
+        fd = create_socket("wpa_wlan1", SOCK_DGRAM, 0666, 0, 0);
+        if (fd >= 0) {
+           publish_socket("wpa_wlan1", fd);
+        }
+
+        if (execle("/system/bin/hostapd", "/system/bin/hostapd",
                   "-e", WIFI_ENTROPY_FILE,
-                  HOSTAPD_CONF_FILE, (char *) NULL)) {
+                  HOSTAPD_CONF_FILE, (char *) NULL, (char**)ENV_SOCKET)) {
             ALOGE("execl failed (%s)", strerror(errno));
         }
         ALOGE("SoftAP failed to start");
@@ -166,8 +180,8 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
     ap_channel = atoi(ap_channel_s);
 
     asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
-            "/data/misc/wifi/hostapd\nssid=%s\nchannel=%d\n",
-	     argv[2], argv[3], ap_channel);
+            "wlan1\nssid=%s\nchannel=%d\n",
+            argv[2], argv[3], ap_channel);
 
     if (argc > 4) {
         if (!strcmp(argv[4], "wpa-psk")) {
@@ -256,4 +270,100 @@ void SoftapController::generatePsk(char *ssid, char *passphrase, char *psk_str) 
     for (j=0; j < SHA256_DIGEST_LENGTH; j++) {
         sprintf(&psk_str[j*2], "%02x", psk[j]);
     }
+}
+
+/*
+ * create_socket - creates a Unix domain socket in ANDROID_SOCKET_DIR
+ * ("/dev/socket"). This socket is inherited by the
+ * daemon. We communicate the file descriptor's value via the environment
+ * variable ANDROID_SOCKET_ENV_PREFIX<name> ("ANDROID_SOCKET_foo").
+ */
+int SoftapController::create_socket(const char *name, int type, mode_t perm, uid_t uid, gid_t gid)
+{
+    struct sockaddr_un addr;
+    int fd, ret;
+#ifdef HAVE_SELINUX
+    char *secon;
+#endif
+
+    fd = socket(PF_UNIX, type, 0);
+    if (fd < 0) {
+        ALOGE("Failed to open socket '%s': %s\n", name, strerror(errno));
+        return -1;
+    }
+
+    memset(&addr, 0 , sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    snprintf(addr.sun_path, sizeof(addr.sun_path), ANDROID_SOCKET_DIR"/%s",
+             name);
+
+    ret = unlink(addr.sun_path);
+    if (ret != 0 && errno != ENOENT) {
+        ALOGE("Failed to unlink old socket '%s': %s\n", name, strerror(errno));
+        goto out_close;
+    }
+
+#ifdef HAVE_SELINUX
+    secon = NULL;
+    if (sehandle) {
+        ret = selabel_lookup(sehandle, &secon, addr.sun_path, S_IFSOCK);
+        if (ret == 0)
+            setfscreatecon(secon);
+    }
+#endif
+
+    ret = bind(fd, (struct sockaddr *) &addr, sizeof (addr));
+    if (ret) {
+        ALOGE("Failed to bind socket '%s': %s\n", name, strerror(errno));
+        goto out_unlink;
+    }
+#ifdef HAVE_SELINUX
+    setfscreatecon(NULL);
+    freecon(secon);
+#endif
+    chown(addr.sun_path, uid, gid);
+    chmod(addr.sun_path, perm);
+
+    ALOGD("Created socket '%s' with mode '%o', user '%d', group '%d'\n",
+         addr.sun_path, perm, uid, gid);
+
+    return fd;
+
+out_unlink:
+    unlink(addr.sun_path);
+out_close:
+    close(fd);
+    return -1;
+}
+
+void SoftapController::publish_socket(const char *name, int fd)
+{
+    char key[64] = ANDROID_SOCKET_ENV_PREFIX;
+    char val[64];
+
+    strlcpy(key + sizeof(ANDROID_SOCKET_ENV_PREFIX) - 1,
+            name,
+            sizeof(key) - sizeof(ANDROID_SOCKET_ENV_PREFIX));
+    snprintf(val, sizeof(val), "%d", fd);
+    add_environment(key, val);
+
+    /* make sure we don't close-on-exec */
+    fcntl(fd, F_SETFD, 0);
+}
+
+/* add_environment - add "key=value" to the current environment */
+int SoftapController::add_environment(const char *key, const char *val)
+{
+    int n;
+
+    for (n = 0; n < 31; n++) {
+        if (!ENV_SOCKET[n]) {
+            size_t len = strlen(key) + strlen(val) + 2;
+            char *entry = (char *)malloc(len);
+            snprintf(entry, len, "%s=%s", key, val);
+            ENV_SOCKET[n] = entry;
+            return 0;
+        }
+    }
+    return 1;
 }

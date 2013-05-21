@@ -32,6 +32,10 @@ class SoftapController {
 
     int addParam(int pos, const char *cmd, const char *arg);
     int setCommand(char *iface, const char *fname, unsigned buflen=0);
+    int create_socket(const char *name, int type, mode_t perm,
+                      uid_t uid, gid_t gid);
+    void publish_socket(const char *name, int fd);
+    int add_environment(const char *key, const char *val);
 public:
     SoftapController();
     virtual ~SoftapController();

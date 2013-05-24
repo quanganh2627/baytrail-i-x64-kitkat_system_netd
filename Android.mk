@@ -63,6 +63,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS :=
 LOCAL_SRC_FILES:=                                      \
                   BandwidthController.cpp              \
+                  ClatdController.cpp                  \
                   CommandListener.cpp                  \
                   DnsProxyListener.cpp                 \
                   FirewallController.cpp               \
@@ -78,9 +79,7 @@ LOCAL_SRC_FILES:=                                      \
                   ResolverController.cpp               \
                   SecondaryTableController.cpp         \
                   TetherController.cpp                 \
-                  ThrottleController.cpp               \
                   oem_iptables_hook.cpp                \
-                  logwrapper.c                         \
                   main.cpp                             \
 
 LOCAL_SRC_FILES += SoftapController.cpp

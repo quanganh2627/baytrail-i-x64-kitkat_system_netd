@@ -379,6 +379,10 @@ int SoftapController::add_environment(const char *key, const char *val)
         if (!ENV_SOCKET[n]) {
             size_t len = strlen(key) + strlen(val) + 2;
             char *entry = (char *)malloc(len);
+
+            if (!entry)
+                return -ENOMEM;
+
             snprintf(entry, len, "%s=%s", key, val);
             ENV_SOCKET[n] = entry;
             return 0;

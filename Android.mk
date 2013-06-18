@@ -38,6 +38,11 @@ LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
 
 LOCAL_CFLAGS := -Werror=format
 
+ifeq ($(NO_FW_RELOAD_FOR_SOFTAP),true)
+ LOCAL_CFLAGS +=  \
+               -DNO_FW_RELOAD_FOR_SOFTAP
+endif
+
 LOCAL_SHARED_LIBRARIES := libstlport libsysutils liblog libcutils libnetutils \
                           libcrypto libhardware_legacy libmdnssd libdl \
                           liblogwrap

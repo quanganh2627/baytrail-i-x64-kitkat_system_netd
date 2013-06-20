@@ -142,7 +142,14 @@ int NatController::enableNat(const int argc, char **argv) {
             }
             runCmd(IP_PATH, "route flush cache");
         }
-        ALOGE("Error setting forward rules");
+
+        // Log msg: Set the raison of the failure
+        if(ret != 0) {
+            ALOGE("Error setting secondary routing tables");
+        } else {
+            ALOGE("Error setting forward rules");
+        }
+
         errno = ENODEV;
         return -1;
     }

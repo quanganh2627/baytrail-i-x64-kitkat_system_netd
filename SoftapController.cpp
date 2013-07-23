@@ -159,12 +159,20 @@ bool SoftapController::isSoftapStarted() {
  *  argv[3] - SSID
  *  argv[4] - Security
  *  argv[5] - Key
+ *  argv[6] - Channel
+ *  argv[7] - Preamble
+ *  argv[8] - Max SCB
+ *  argv[9] - hw_mode
+ *  argv[10] - ieee80211n
+ *  argv[11] - country
  */
 int SoftapController::setSoftap(int argc, char *argv[]) {
     char psk_str[2*SHA256_DIGEST_LENGTH+1];
     int ret = ResponseCode::SoftapStatusResult;
     int i = 0;
     int fd;
+    char *hw_mode, *country;
+    int n_support;
 
     if (argc < 4) {
         ALOGE("Softap set is missing arguments. Please use: softap <wlan iface> <SSID> <wpa2?-psk|open> <passphrase>");
@@ -173,15 +181,45 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
 
     char *wbuf = NULL;
     char *fbuf = NULL;
+    ALOGD("setsoftap arg count %d, args", argc);
+    for (int j = 0; j < argc; j++)
+        ALOGD("%s", argv[j]);
+    ALOGD("------");
+
     char ap_channel_s[10];
     int ap_channel = 6;
-    
-    property_get("wifi.ap.channel", ap_channel_s, "6");
+    property_get("wifi.ap.channel", ap_channel_s, "0");
     ap_channel = atoi(ap_channel_s);
 
+    if (ap_channel == 0) {
+        if (argc > 6 && argv[6])
+            ap_channel = atoi(argv[6]);
+        else
+            ap_channel = 6;
+    }
+
+    if (argc > 9) {
+        hw_mode = argv[9];
+    } else {
+        if (ap_channel < 36)
+            hw_mode = (char*)"g";
+        else
+            hw_mode = (char*)"a";
+    }
+
+    if (argc > 10) {
+        n_support = atoi(argv[10]);
+    } else
+        n_support = 1;
+
+    if (argc > 11) {
+        country = argv[11];
+    } else
+        country = (char *)"00";
+
     asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
-            "wlan1\nssid=%s\nchannel=%d\n",
-            argv[2], argv[3], ap_channel);
+            "wlan1\nssid=%s\ncountry_code=%s\nchannel=%d\nhw_mode=%s\nieee80211n=%d\n",
+            argv[2], argv[3], country, ap_channel, hw_mode, n_support);
 
     if (argc > 4) {
         if (!strcmp(argv[4], "wpa-psk")) {
@@ -196,6 +234,8 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
     } else {
         asprintf(&fbuf, "%s", wbuf);
     }
+
+    ALOGD("hostapd.conf\n%s\n-----", fbuf);
 
     fd = open(HOSTAPD_CONF_FILE, O_CREAT | O_TRUNC | O_WRONLY | O_NOFOLLOW, 0660);
     if (fd < 0) {

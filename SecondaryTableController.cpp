@@ -159,13 +159,16 @@ int SecondaryTableController::removeRoute(SocketClient *cli, char *iface, char *
 int SecondaryTableController::modifyFromRule(int tableIndex, const char *action,
         const char *addr) {
     char *cmd;
+    int ret = 0;
 
     if (verifyTableIndex(tableIndex)) {
         return -1;
     }
     asprintf(&cmd, "%s %s rule %s from %s table %d", IP_PATH, getVersion(addr),
             action, addr, tableIndex + BASE_TABLE_NUMBER);
-    if (runAndFree(NULL, cmd)) {
+    ret = runAndFree(NULL, cmd);
+    if(ret != 0) {
+        ALOGE("modifyFromRule failed - Cmd[%s %s rule %s from %s table %d] - Ret[%i]", IP_PATH, getVersion(addr), action, addr, tableIndex + BASE_TABLE_NUMBER, ret);
         return -1;
     }
 
@@ -176,6 +179,7 @@ int SecondaryTableController::modifyFromRule(int tableIndex, const char *action,
 int SecondaryTableController::modifyLocalRoute(int tableIndex, const char *action,
         const char *iface, const char *addr) {
     char *cmd;
+    int ret = 0;
 
     if (verifyTableIndex(tableIndex)) {
         return -1;
@@ -185,7 +189,11 @@ int SecondaryTableController::modifyLocalRoute(int tableIndex, const char *actio
 
     asprintf(&cmd, "%s route %s %s dev %s table %d", IP_PATH, action, addr, iface,
             tableIndex+BASE_TABLE_NUMBER);
-    return runAndFree(NULL, cmd);
+    ret = runAndFree(NULL, cmd);
+    if(ret != 0) {
+        ALOGE("modifyLocalRoute failed - Cmd[%s route %s %s dev %s table %d] - Ret[%i]", IP_PATH, action, addr, iface, tableIndex+BASE_TABLE_NUMBER, ret);
+    }
+    return ret;
 }
 
 int SecondaryTableController::runAndFree(SocketClient *cli, char *cmd) {

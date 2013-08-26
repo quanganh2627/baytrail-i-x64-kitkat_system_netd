@@ -126,6 +126,12 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
 
         /* Copy the new addrs*/
         mAddrs = (struct in_addr*)malloc(sizeof (struct in_addr*) * num_addrs);
+        if (!mAddrs) {
+            ALOGE("malloc failed (%s)", strerror(errno));
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return -1;
+        }
         mNum_addrs = num_addrs;
         for (int addrIndex=0; addrIndex < mNum_addrs;) {
             mAddrs[addrIndex] = addrs[addrIndex];
@@ -269,34 +275,35 @@ int TetherController::setDnsForwarders(char **servers, int numServers) {
 
 int TetherController::resetDnsForwarders() {
     int numServers = mDnsForwarders == NULL ? 0 : (int) mDnsForwarders->size();
-
+    char *addr;
+    int next_bytes_left;
     char daemonCmd[MAX_CMD_SIZE];
-    memset(daemonCmd, '\0' , sizeof(daemonCmd));
 
     if (mDaemonFd == -1)
         return -1;
 
     strcpy(daemonCmd, "update_dns");
-    int cmdLen = strlen(daemonCmd);
 
     if(numServers > 0) {
         NetAddressCollection::iterator it;
+        next_bytes_left = sizeof(daemonCmd) - strlen(daemonCmd) - 1;
         for (it = mDnsForwarders->begin(); it != mDnsForwarders->end(); ++it) {
-            cmdLen += strlen(inet_ntoa(*it));
-            if (cmdLen + 2 >= sizeof(daemonCmd)) {
+            addr = inet_ntoa(*it);
+            next_bytes_left = next_bytes_left - 1 - strlen(addr);
+            if (next_bytes_left < 0) {
                 LOGD("(resetDnsForwarders) Too many DNS servers listed");
                 break;
-            } else {
-                strncat(daemonCmd, ":", 1 );
-                strncat(daemonCmd, inet_ntoa(*it), sizeof(daemonCmd) - strlen(daemonCmd) + 1);
             }
+            strcat(daemonCmd, ":");
+            strcat(daemonCmd, addr);
         }
     }
 
     LOGD("(resetDnsForwarders) Sending update msg to dnsmasq [%s]", daemonCmd);
     if (write(mDaemonFd, daemonCmd, strlen(daemonCmd) +1) < 0) {
         LOGE("(resetDnsForwarders) Failed to send update command to dnsmasq (%s)", strerror(errno));
-        mDnsForwarders->clear();
+        if (mDnsForwarders != NULL)
+            mDnsForwarders->clear();
         return -1;
     }
 

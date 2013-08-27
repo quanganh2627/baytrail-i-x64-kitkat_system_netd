@@ -23,13 +23,18 @@
 #include "TetherController.h"
 #include "NatController.h"
 #include "PppController.h"
+#ifdef SOFTAPTI
+#include "SoftapControllerTI.h"
+#else
 #include "SoftapController.h"
+#endif
 #include "BandwidthController.h"
 #include "IdletimerController.h"
 #include "InterfaceController.h"
 #include "ResolverController.h"
 #include "SecondaryTableController.h"
 #include "FirewallController.h"
+#include "ClatdController.h"
 
 class CommandListener : public FrameworkListener {
     static TetherController *sTetherCtrl;
@@ -42,16 +47,13 @@ class CommandListener : public FrameworkListener {
     static ResolverController *sResolverCtrl;
     static SecondaryTableController *sSecondaryTableCtrl;
     static FirewallController *sFirewallCtrl;
+    static ClatdController *sClatdCtrl;
 
 public:
     CommandListener();
     virtual ~CommandListener() {}
 
 private:
-
-    static int writeFile(const char *path, const char *value, int size);
-
-    static int readInterfaceCounters(const char *iface, unsigned long *rx, unsigned long *tx);
 
     class SoftapCmd : public NetdCommand {
     public:
@@ -135,6 +137,13 @@ private:
     protected:
         int sendGenericOkFail(SocketClient *cli, int cond);
         static FirewallRule parseRule(const char* arg);
+    };
+
+    class ClatdCmd : public NetdCommand {
+    public:
+        ClatdCmd();
+        virtual ~ClatdCmd() {}
+        int runCommand(SocketClient *c, int argc, char ** argv);
     };
 };
 

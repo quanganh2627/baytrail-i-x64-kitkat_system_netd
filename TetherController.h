@@ -28,8 +28,10 @@ class TetherController {
     InterfaceCollection  *mInterfaces;
     NetAddressCollection *mDnsForwarders;
     pid_t                 mDaemonPid;
-    pid_t                 mDhcpcdPid;
     int                   mDaemonFd;
+    struct in_addr* mAddrs;
+    int mNum_addrs;
+    int mIntTetherRestart;
 
 public:
     TetherController();
@@ -43,15 +45,16 @@ public:
     int stopTethering();
     bool isTetheringStarted();
 
-    int startReverseTethering(const char* iface);
-    int stopReverseTethering();
-
     int setDnsForwarders(char **servers, int numServers);
     NetAddressCollection *getDnsForwarders();
+    int resetDnsForwarders();
 
     int tetherInterface(const char *interface);
     int untetherInterface(const char *interface);
     InterfaceCollection *getTetheredInterfaceList();
+
+private:
+    int applyDnsInterfaces();
 };
 
 #endif

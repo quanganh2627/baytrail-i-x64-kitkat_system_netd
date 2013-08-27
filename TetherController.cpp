@@ -33,12 +33,16 @@
 
 #include "TetherController.h"
 
+#define MAX_DNS_TRIALS 3
+
 TetherController::TetherController() {
     mInterfaces = new InterfaceCollection();
     mDnsForwarders = new NetAddressCollection();
     mDaemonFd = -1;
     mDaemonPid = 0;
-    mDhcpcdPid = 0;
+    mAddrs = (struct in_addr*)NULL;
+    mNum_addrs = 0;
+    mIntTetherRestart = 0;
 }
 
 TetherController::~TetherController() {
@@ -50,6 +54,7 @@ TetherController::~TetherController() {
     mInterfaces->clear();
 
     mDnsForwarders->clear();
+    free(mAddrs);
 }
 
 int TetherController::setIpFwdEnabled(bool enable) {
@@ -114,6 +119,29 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
         return -1;
     }
 
+    /*Remember the provided DHCP range if not already done*/
+    if (!mIntTetherRestart) {
+        /* Free the previous remember addrs*/
+        free(mAddrs);
+
+        /* Copy the new addrs*/
+        mAddrs = (struct in_addr*)malloc(sizeof (struct in_addr*) * num_addrs);
+        if (!mAddrs) {
+            ALOGE("malloc failed (%s)", strerror(errno));
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return -1;
+        }
+        mNum_addrs = num_addrs;
+        for (int addrIndex=0; addrIndex < mNum_addrs;) {
+            mAddrs[addrIndex] = addrs[addrIndex];
+            addrIndex++;
+            mAddrs[addrIndex] = addrs[addrIndex];
+            addrIndex++;
+        }
+    }
+    mIntTetherRestart = 0;
+
     /*
      * TODO: Create a monitoring thread to handle and restart
      * the daemon if it exits prematurely
@@ -135,7 +163,8 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
             close(pipefd[0]);
         }
 
-        int num_processed_args = 7 + (num_addrs/2) + 1; // 1 null for termination
+        /* Wifi_Hotspot : dhcp-script is enabled */
+        int num_processed_args = 10 + mInterfaces->size() + (num_addrs/2) + 1; // 1 null for termination
         char **args = (char **)malloc(sizeof(char *) * num_processed_args);
         args[num_processed_args - 1] = NULL;
         args[0] = (char *)"/system/bin/dnsmasq";
@@ -145,9 +174,20 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
         // TODO: pipe through metered status from ConnService
         args[4] = (char *)"--dhcp-option-force=43,ANDROID_METERED";
         args[5] = (char *)"--pid-file";
-        args[6] = (char *)"";
+        args[6] = (char *)"--dhcp-script=/system/bin/dhcp_lease_evt.sh";
+        args[7] = (char *)"-z";
+        args[8] = (char *)"-Ilo";
+        args[9] = (char *)"";
 
-        int nextArg = 7;
+        int nextArg = 10;
+
+         /*Activate the DHCP server only on tethered interfaces*/
+        InterfaceCollection *ilist = mInterfaces;
+        InterfaceCollection::iterator it;
+        for (it = ilist->begin(); it != ilist->end(); ++it) {
+            asprintf(&(args[nextArg++]),"-i%s", *it);
+        }
+
         for (int addrIndex=0; addrIndex < num_addrs;) {
             char *start = strdup(inet_ntoa(addrs[addrIndex++]));
             char *end = strdup(inet_ntoa(addrs[addrIndex++]));
@@ -158,12 +198,12 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
             ALOGE("execl failed (%s)", strerror(errno));
         }
         ALOGE("Should never get here!");
-        free(args);
-        return 0;
+        _exit(-1);
     } else {
         close(pipefd[0]);
         mDaemonPid = pid;
         mDaemonFd = pipefd[1];
+        applyDnsInterfaces();
         ALOGD("Tethering services running");
     }
 
@@ -188,75 +228,6 @@ int TetherController::stopTethering() {
     return 0;
 }
 
-// TODO(BT) remove
-int TetherController::startReverseTethering(const char* iface) {
-    if (mDhcpcdPid != 0) {
-        ALOGE("Reverse tethering already started");
-        errno = EBUSY;
-        return -1;
-    }
-
-    ALOGD("TetherController::startReverseTethering, Starting reverse tethering");
-
-    /*
-     * TODO: Create a monitoring thread to handle and restart
-     * the daemon if it exits prematurely
-     */
-    //cleanup the dhcp result
-    char dhcp_result_name[64];
-    snprintf(dhcp_result_name, sizeof(dhcp_result_name) - 1, "dhcp.%s.result", iface);
-    property_set(dhcp_result_name, "");
-
-    pid_t pid;
-    if ((pid = fork()) < 0) {
-        ALOGE("fork failed (%s)", strerror(errno));
-        return -1;
-    }
-
-    if (!pid) {
-
-        char *args[10];
-        int argc = 0;
-        args[argc++] = "/system/bin/dhcpcd";
-        char host_name[128];
-        if (property_get("net.hostname", host_name, NULL) && (host_name[0] != '\0'))
-        {
-            args[argc++] = "-h";
-            args[argc++] = host_name;
-        }
-        args[argc++] = (char*)iface;
-        args[argc] = NULL;
-        if (execv(args[0], args)) {
-            ALOGE("startReverseTethering, execv failed (%s)", strerror(errno));
-        }
-        ALOGE("startReverseTethering, Should never get here!");
-        // TODO(BT) inform parent of the failure.
-        //          Parent process need wait for child to report error status
-        //          before it set mDhcpcdPid and return 0.
-        exit(-1);
-    } else {
-        mDhcpcdPid = pid;
-        ALOGD("Reverse Tethering running, pid:%d", pid);
-    }
-    return 0;
-}
-
-// TODO(BT) remove
-int TetherController::stopReverseTethering() {
-
-    if (mDhcpcdPid == 0) {
-        ALOGE("Tethering already stopped");
-        return 0;
-    }
-
-    ALOGD("Stopping tethering services");
-
-    kill(mDhcpcdPid, SIGTERM);
-    waitpid(mDhcpcdPid, NULL, 0);
-    mDhcpcdPid = 0;
-    ALOGD("Tethering services stopped");
-    return 0;
-}
 bool TetherController::isTetheringStarted() {
     return (mDaemonPid == 0 ? false : true);
 }
@@ -304,23 +275,137 @@ int TetherController::setDnsForwarders(char **servers, int numServers) {
     return 0;
 }
 
+int TetherController::resetDnsForwarders() {
+    int numServers = mDnsForwarders == NULL ? 0 : (int) mDnsForwarders->size();
+
+    char daemonCmd[MAX_CMD_SIZE];
+    memset(daemonCmd, '\0' , sizeof(daemonCmd));
+
+    if (mDaemonFd == -1)
+        return -1;
+
+    strcpy(daemonCmd, "update_dns");
+    int cmdLen = strlen(daemonCmd);
+
+    if(numServers > 0) {
+        NetAddressCollection::iterator it;
+        for (it = mDnsForwarders->begin(); it != mDnsForwarders->end(); ++it) {
+            cmdLen += strlen(inet_ntoa(*it));
+            if (cmdLen + 2 >= sizeof(daemonCmd)) {
+                LOGD("(resetDnsForwarders) Too many DNS servers listed");
+                break;
+            } else {
+                strncat(daemonCmd, ":", 1 );
+                strncat(daemonCmd, inet_ntoa(*it), sizeof(daemonCmd) - strlen(daemonCmd) + 1);
+            }
+        }
+    }
+
+    LOGD("(resetDnsForwarders) Sending update msg to dnsmasq [%s]", daemonCmd);
+    if (write(mDaemonFd, daemonCmd, strlen(daemonCmd) +1) < 0) {
+        LOGE("(resetDnsForwarders) Failed to send update command to dnsmasq (%s)", strerror(errno));
+        if (mDnsForwarders != NULL)
+            mDnsForwarders->clear();
+        return -1;
+    }
+
+    return 0;
+}
+
 NetAddressCollection *TetherController::getDnsForwarders() {
     return mDnsForwarders;
 }
 
-int TetherController::tetherInterface(const char *interface) {
-    mInterfaces->push_back(strdup(interface));
+int TetherController::applyDnsInterfaces() {
+    int i;
+    char daemonCmd[MAX_CMD_SIZE];
+
+    strcpy(daemonCmd, "update_ifaces");
+    int cmdLen = strlen(daemonCmd);
+    InterfaceCollection::iterator it;
+    bool haveInterfaces = false;
+
+    for (it = mInterfaces->begin(); it != mInterfaces->end(); ++it) {
+        cmdLen += (strlen(*it) + 1);
+        if (cmdLen + 1 >= MAX_CMD_SIZE) {
+            ALOGD("Too many DNS ifaces listed");
+            break;
+        }
+
+        strcat(daemonCmd, ":");
+        strcat(daemonCmd, *it);
+        haveInterfaces = true;
+    }
+
+    if ((mDaemonFd != -1) && haveInterfaces) {
+        ALOGD("Sending update msg to dnsmasq [%s]", daemonCmd);
+        if (write(mDaemonFd, daemonCmd, strlen(daemonCmd) +1) < 0) {
+            ALOGE("Failed to send update command to dnsmasq (%s)", strerror(errno));
+            return -1;
+        }
+    }
     return 0;
+}
+
+int TetherController::tetherInterface(const char *interface) {
+    ALOGD("tetherInterface(%s)", interface);
+    mInterfaces->push_back(strdup(interface));
+    /* Restart DHCP server to take in account the new tethered interface*/
+    if(mDaemonPid) {
+        mIntTetherRestart = 1;
+        stopTethering();
+        startTethering(mNum_addrs, mAddrs);
+        usleep(1000);
+        for (int i=0; i<MAX_DNS_TRIALS; i++) {
+            if(resetDnsForwarders()==-1) {
+                LOGE("Failed to reset Dns Forwarders (trial %d/%d) ",i,MAX_DNS_TRIALS);
+                usleep(1000);
+            } else {
+                break;
+            }
+        }
+
+    }
+
+    if (applyDnsInterfaces()) {
+        InterfaceCollection::iterator it;
+        for (it = mInterfaces->begin(); it != mInterfaces->end(); ++it) {
+            if (!strcmp(interface, *it)) {
+                free(*it);
+                mInterfaces->erase(it);
+                break;
+            }
+        }
+        return -1;
+    } else {
+        return 0;
+    }
 }
 
 int TetherController::untetherInterface(const char *interface) {
     InterfaceCollection::iterator it;
-
+    ALOGD("untetherInterface(%s)", interface);
     for (it = mInterfaces->begin(); it != mInterfaces->end(); ++it) {
         if (!strcmp(interface, *it)) {
             free(*it);
             mInterfaces->erase(it);
-            return 0;
+            /* Restart DHCP server to take in account the deleted interface*/
+            if(mDaemonPid) {
+                mIntTetherRestart = 1;
+                stopTethering();
+                startTethering(mNum_addrs, mAddrs);
+                usleep(1000);
+                for (int i=0; i<MAX_DNS_TRIALS; i++) {
+                    if(resetDnsForwarders()==-1) {
+                        LOGE("Failed to reset Dns Forwarders (trial %d/%d) ",i,MAX_DNS_TRIALS);
+                        usleep(1000);
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            return applyDnsInterfaces();
         }
     }
     errno = ENOENT;

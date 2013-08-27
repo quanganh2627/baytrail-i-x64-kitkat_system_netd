@@ -33,17 +33,12 @@
 
 #include "TetherController.h"
 
-#define MAX_DNS_TRIALS 3
-
 TetherController::TetherController() {
     mInterfaces = new InterfaceCollection();
     mDnsForwarders = new NetAddressCollection();
     mDaemonFd = -1;
     mDaemonPid = 0;
     mDhcpcdPid = 0;
-    mAddrs = (struct in_addr*)NULL;
-    mNum_addrs = 0;
-    mIntTetherRestart = 0;
 }
 
 TetherController::~TetherController() {
@@ -55,7 +50,6 @@ TetherController::~TetherController() {
     mInterfaces->clear();
 
     mDnsForwarders->clear();
-    free(mAddrs);
 }
 
 int TetherController::setIpFwdEnabled(bool enable) {
@@ -120,29 +114,6 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
         return -1;
     }
 
-    /*Remember the provided DHCP range if not already done*/
-    if (!mIntTetherRestart) {
-        /* Free the previous remember addrs*/
-        free(mAddrs);
-
-        /* Copy the new addrs*/
-        mAddrs = (struct in_addr*)malloc(sizeof (struct in_addr*) * num_addrs);
-        if (!mAddrs) {
-            ALOGE("malloc failed (%s)", strerror(errno));
-            close(pipefd[0]);
-            close(pipefd[1]);
-            return -1;
-        }
-        mNum_addrs = num_addrs;
-        for (int addrIndex=0; addrIndex < mNum_addrs;) {
-            mAddrs[addrIndex] = addrs[addrIndex];
-            addrIndex++;
-            mAddrs[addrIndex] = addrs[addrIndex];
-            addrIndex++;
-        }
-    }
-    mIntTetherRestart = 0;
-
     /*
      * TODO: Create a monitoring thread to handle and restart
      * the daemon if it exits prematurely
@@ -164,8 +135,7 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
             close(pipefd[0]);
         }
 
-        /* Wifi_Hotspot : dhcp-script is enabled */
-        int num_processed_args = 10 + mInterfaces->size() + (num_addrs/2) + 1; // 1 null for termination
+        int num_processed_args = 7 + (num_addrs/2) + 1; // 1 null for termination
         char **args = (char **)malloc(sizeof(char *) * num_processed_args);
         args[num_processed_args - 1] = NULL;
         args[0] = (char *)"/system/bin/dnsmasq";
@@ -175,20 +145,9 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
         // TODO: pipe through metered status from ConnService
         args[4] = (char *)"--dhcp-option-force=43,ANDROID_METERED";
         args[5] = (char *)"--pid-file";
-        args[6] = (char *)"--dhcp-script=/system/bin/dhcp_lease_evt.sh";
-        args[7] = (char *)"-z";
-        args[8] = (char *)"-Ilo";
-        args[9] = (char *)"";
+        args[6] = (char *)"";
 
-        int nextArg = 10;
-
-         /*Activate the DHCP server only on tethered interfaces*/
-        InterfaceCollection *ilist = mInterfaces;
-        InterfaceCollection::iterator it;
-        for (it = ilist->begin(); it != ilist->end(); ++it) {
-            asprintf(&(args[nextArg++]),"-i%s", *it);
-        }
-
+        int nextArg = 7;
         for (int addrIndex=0; addrIndex < num_addrs;) {
             char *start = strdup(inet_ntoa(addrs[addrIndex++]));
             char *end = strdup(inet_ntoa(addrs[addrIndex++]));
@@ -345,91 +304,22 @@ int TetherController::setDnsForwarders(char **servers, int numServers) {
     return 0;
 }
 
-int TetherController::resetDnsForwarders() {
-    int numServers = mDnsForwarders == NULL ? 0 : (int) mDnsForwarders->size();
-
-    char daemonCmd[MAX_CMD_SIZE];
-    memset(daemonCmd, '\0' , sizeof(daemonCmd));
-
-    if (mDaemonFd == -1)
-        return -1;
-
-    strcpy(daemonCmd, "update_dns");
-    int cmdLen = strlen(daemonCmd);
-
-    if(numServers > 0) {
-        NetAddressCollection::iterator it;
-        for (it = mDnsForwarders->begin(); it != mDnsForwarders->end(); ++it) {
-            cmdLen += strlen(inet_ntoa(*it));
-            if (cmdLen + 2 >= sizeof(daemonCmd)) {
-                LOGD("(resetDnsForwarders) Too many DNS servers listed");
-                break;
-            } else {
-                strncat(daemonCmd, ":", 1 );
-                strncat(daemonCmd, inet_ntoa(*it), sizeof(daemonCmd) - strlen(daemonCmd) + 1);
-            }
-        }
-    }
-
-    LOGD("(resetDnsForwarders) Sending update msg to dnsmasq [%s]", daemonCmd);
-    if (write(mDaemonFd, daemonCmd, strlen(daemonCmd) +1) < 0) {
-        LOGE("(resetDnsForwarders) Failed to send update command to dnsmasq (%s)", strerror(errno));
-        if (mDnsForwarders != NULL)
-            mDnsForwarders->clear();
-        return -1;
-    }
-
-    return 0;
-}
-
 NetAddressCollection *TetherController::getDnsForwarders() {
     return mDnsForwarders;
 }
 
 int TetherController::tetherInterface(const char *interface) {
     mInterfaces->push_back(strdup(interface));
-    /* Restart DHCP server to take in account the new tethered interface*/
-    if(mDaemonPid) {
-        mIntTetherRestart = 1;
-        stopTethering();
-        startTethering(mNum_addrs, mAddrs);
-        usleep(1000);
-        for (int i=0; i<MAX_DNS_TRIALS; i++) {
-            if(resetDnsForwarders()==-1) {
-                LOGE("Failed to reset Dns Forwarders (trial %d/%d) ",i,MAX_DNS_TRIALS);
-                usleep(1000);
-            } else {
-                break;
-            }
-        }
-
-    }
-
     return 0;
 }
 
 int TetherController::untetherInterface(const char *interface) {
     InterfaceCollection::iterator it;
+
     for (it = mInterfaces->begin(); it != mInterfaces->end(); ++it) {
         if (!strcmp(interface, *it)) {
             free(*it);
             mInterfaces->erase(it);
-            /* Restart DHCP server to take in account the deleted interface*/
-            if(mDaemonPid) {
-                mIntTetherRestart = 1;
-                stopTethering();
-                startTethering(mNum_addrs, mAddrs);
-                usleep(1000);
-                for (int i=0; i<MAX_DNS_TRIALS; i++) {
-                    if(resetDnsForwarders()==-1) {
-                        LOGE("Failed to reset Dns Forwarders (trial %d/%d) ",i,MAX_DNS_TRIALS);
-                        usleep(1000);
-                    } else {
-                        break;
-                    }
-                }
-            }
-
             return 0;
         }
     }

@@ -295,8 +295,8 @@ int TetherController::resetDnsForwarders() {
                 LOGD("(resetDnsForwarders) Too many DNS servers listed");
                 break;
             } else {
-                strncat(daemonCmd, ":", 1 );
-                strncat(daemonCmd, inet_ntoa(*it), sizeof(daemonCmd) - strlen(daemonCmd) + 1);
+                strncat(daemonCmd, ":", sizeof(daemonCmd) - strlen(daemonCmd) - 1);
+                strncat(daemonCmd, inet_ntoa(*it), sizeof(daemonCmd) - strlen(daemonCmd) - 1);
             }
         }
     }

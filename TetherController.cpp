@@ -277,27 +277,27 @@ int TetherController::setDnsForwarders(char **servers, int numServers) {
 
 int TetherController::resetDnsForwarders() {
     int numServers = mDnsForwarders == NULL ? 0 : (int) mDnsForwarders->size();
-
+    char *addr;
+    int next_bytes_left;
     char daemonCmd[MAX_CMD_SIZE];
-    memset(daemonCmd, '\0' , sizeof(daemonCmd));
 
     if (mDaemonFd == -1)
         return -1;
 
     strcpy(daemonCmd, "update_dns");
-    int cmdLen = strlen(daemonCmd);
 
     if(numServers > 0) {
         NetAddressCollection::iterator it;
+        next_bytes_left = sizeof(daemonCmd) - strlen(daemonCmd) - 1;
         for (it = mDnsForwarders->begin(); it != mDnsForwarders->end(); ++it) {
-            cmdLen += strlen(inet_ntoa(*it));
-            if (cmdLen + 2 >= sizeof(daemonCmd)) {
+            addr = inet_ntoa(*it);
+            next_bytes_left = next_bytes_left - 1 - strlen(addr);
+            if (next_bytes_left < 0) {
                 LOGD("(resetDnsForwarders) Too many DNS servers listed");
                 break;
-            } else {
-                strncat(daemonCmd, ":", sizeof(daemonCmd) - strlen(daemonCmd) - 1);
-                strncat(daemonCmd, inet_ntoa(*it), sizeof(daemonCmd) - strlen(daemonCmd) - 1);
             }
+            strcat(daemonCmd, ":");
+            strcat(daemonCmd, addr);
         }
     }
 

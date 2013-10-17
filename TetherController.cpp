@@ -38,6 +38,9 @@ TetherController::TetherController() {
     mDnsForwarders = new NetAddressCollection();
     mDaemonFd = -1;
     mDaemonPid = 0;
+    mAddrs = (struct in_addr*)NULL;
+    mNum_addrs = 0;
+    mIntTetherRestart = 0;
 }
 
 TetherController::~TetherController() {
@@ -49,6 +52,7 @@ TetherController::~TetherController() {
     mInterfaces->clear();
 
     mDnsForwarders->clear();
+    free(mAddrs);
 }
 
 int TetherController::setIpFwdEnabled(bool enable) {
@@ -113,6 +117,23 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
         return -1;
     }
 
+    /*Remember the provided DHCP range if not already done*/
+    if (!mIntTetherRestart) {
+        /* Free the previous remember addrs*/
+        free(mAddrs);
+
+        /* Copy the new addrs*/
+        mAddrs = (struct in_addr*)malloc(sizeof (struct in_addr*) * num_addrs);
+        mNum_addrs = num_addrs;
+        for (int addrIndex=0; addrIndex < mNum_addrs;) {
+            mAddrs[addrIndex] = addrs[addrIndex];
+            addrIndex++;
+            mAddrs[addrIndex] = addrs[addrIndex];
+            addrIndex++;
+        }
+    }
+    mIntTetherRestart = 0;
+
     /*
      * TODO: Create a monitoring thread to handle and restart
      * the daemon if it exits prematurely
@@ -134,7 +155,7 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
             close(pipefd[0]);
         }
 
-        int num_processed_args = 7 + (num_addrs/2) + 1; // 1 null for termination
+        int num_processed_args = 9 + mInterfaces->size() + (num_addrs/2) + 1; // 1 null for termination
         char **args = (char **)malloc(sizeof(char *) * num_processed_args);
         args[num_processed_args - 1] = NULL;
         args[0] = (char *)"/system/bin/dnsmasq";
@@ -144,9 +165,19 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
         // TODO: pipe through metered status from ConnService
         args[4] = (char *)"--dhcp-option-force=43,ANDROID_METERED";
         args[5] = (char *)"--pid-file";
-        args[6] = (char *)"";
+        args[6] = (char *)"-z";
+        args[7] = (char *)"-Ilo";
+        args[8] = (char *)"";
 
-        int nextArg = 7;
+        int nextArg = 9;
+
+         /*Activate the DHCP server only on tethered interfaces*/
+        InterfaceCollection *ilist = mInterfaces;
+        InterfaceCollection::iterator it;
+        for (it = ilist->begin(); it != ilist->end(); ++it) {
+            asprintf(&(args[nextArg++]),"-i%s", *it);
+        }
+
         for (int addrIndex=0; addrIndex < num_addrs;) {
             char *start = strdup(inet_ntoa(addrs[addrIndex++]));
             char *end = strdup(inet_ntoa(addrs[addrIndex++]));
@@ -273,6 +304,13 @@ int TetherController::tetherInterface(const char *interface) {
     ALOGD("tetherInterface(%s)", interface);
     mInterfaces->push_back(strdup(interface));
 
+    /* Restart DHCP server to take in account the new tethered interface*/
+    if(mDaemonPid) {
+        mIntTetherRestart = 1;
+        stopTethering();
+        startTethering(mNum_addrs, mAddrs);
+    }
+
     if (applyDnsInterfaces()) {
         InterfaceCollection::iterator it;
         for (it = mInterfaces->begin(); it != mInterfaces->end(); ++it) {
@@ -297,6 +335,12 @@ int TetherController::untetherInterface(const char *interface) {
         if (!strcmp(interface, *it)) {
             free(*it);
             mInterfaces->erase(it);
+            /* Restart DHCP server to take in account the deleted interface*/
+            if(mDaemonPid) {
+                mIntTetherRestart = 1;
+                stopTethering();
+                startTethering(mNum_addrs, mAddrs);
+            }
 
             return applyDnsInterfaces();
         }

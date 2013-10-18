@@ -180,7 +180,7 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
 
 
     asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
-            "/data/misc/wifi/hostapd\nssid=%s\nchannel=%d\nieee80211n=1\n"
+            "/data/misc/wifi/hostapd\nssid=%s\nchannel=%d\n"
             "hw_mode=g\nignore_broadcast_ssid=%d\n",
             argv[2], argv[3], channel, hidden);
 
@@ -253,22 +253,12 @@ int SoftapController::fwReloadSoftap(int argc, char *argv[])
         return ResponseCode::CommandSyntaxError;
     }
 
-    iface = argv[2];
-    stopDriver(iface);
-
     if (!strcmp("STA", argv[3]))
         wifi_switch_driver_mode(WIFI_STA_MODE); /* which is STA + P2P... */
     else if (!strcmp("AP", argv[3]))
         wifi_switch_driver_mode(WIFI_AP_MODE);
     else if (!strcmp("P2P", argv[3]))
         wifi_switch_driver_mode(WIFI_P2P_MODE);
-
-    /**
-     * Sleep to workaround issue in the brcm driver which is tracked by BZ
-     * 85864. To be removed as soon as BZ85864 is fixed.
-     */
-    sleep(2);
-    startDriver(iface);
 
     ALOGD("Softap fwReload - done");
 

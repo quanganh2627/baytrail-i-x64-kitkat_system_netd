@@ -35,6 +35,7 @@
 
 #define LOG_TAG "SoftapController"
 #include <cutils/log.h>
+#include <cutils/properties.h>
 #include <netutils/ifc.h>
 #include <private/android_filesystem_config.h>
 #include "wifi.h"
@@ -165,12 +166,18 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
 
     if (!strcasecmp(argv[4], "hidden"))
         hidden = 1;
-
+     
     if (argc >= 5) {
         channel = atoi(argv[5]);
         if (channel <= 0)
             channel = AP_CHANNEL_DEFAULT;
+    } else {
+        char ap_channel_s[10];
+        property_get("wifi.ap.channel", ap_channel_s, "6");
+        channel = atoi(ap_channel_s);
     }
+
+
 
     asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
             "/data/misc/wifi/hostapd\nssid=%s\nchannel=%d\nieee80211n=1\n"

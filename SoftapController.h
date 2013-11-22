@@ -25,12 +25,19 @@
 #define AP_BSS_STOP_DELAY	500000
 #define AP_SET_CFG_DELAY	500000
 #define AP_DRIVER_START_DELAY	800000
+#define AP_CHANNEL_DEFAULT	6
 
 class SoftapController {
+    int create_socket(const char *name, int type, mode_t perm,
+                      uid_t uid, gid_t gid);
+    void publish_socket(const char *name, int fd);
+    int add_environment(const char *key, const char *val);
 public:
     SoftapController();
     virtual ~SoftapController();
 
+    int startDriver(char *iface);
+    int stopDriver(char *iface);
     int startSoftap();
     int stopSoftap();
     bool isSoftapStarted();

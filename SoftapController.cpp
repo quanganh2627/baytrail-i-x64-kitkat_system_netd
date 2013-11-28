@@ -321,6 +321,11 @@ int SoftapController::fwReloadSoftap(int argc, char *argv[])
     int i = 0;
     char *fwpath;
 
+#ifdef NO_FW_RELOAD_FOR_SOFTAP
+    ALOGD("SoftAP skip FW reload");
+    return 0;
+#endif
+
     if (mSock < 0) {
         ALOGE("Softap fwrealod - failed to open socket");
         return -1;

@@ -269,9 +269,9 @@ int NatController::setTetherCountingRules(bool add, const char *intIface, const 
         /* quota for iface pair already exists */
         free(proc_path);
         free(quota_name);
+        close(quota_fd);
         return 0;
     }
-    close(quota_fd);
     free(proc_path);
 
     const char *cmd2b[] = {
@@ -304,9 +304,9 @@ int NatController::setTetherCountingRules(bool add, const char *intIface, const 
         /* quota for iface pair already exists */
         free(proc_path);
         free(quota_name);
+        close(quota_fd);
         return 0;
     }
-    close(quota_fd);
     free(proc_path);
 
     const char *cmd3b[] = {

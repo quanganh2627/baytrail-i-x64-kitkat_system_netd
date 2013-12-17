@@ -79,6 +79,7 @@ LOCAL_SRC_FILES:=                                      \
                   ResolverController.cpp               \
                   SecondaryTableController.cpp         \
                   TetherController.cpp                 \
+                  IpSecController.cpp                  \
                   oem_iptables_hook.cpp                \
                   UidMarkMap.cpp                       \
                   main.cpp                             \
@@ -94,12 +95,13 @@ LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
                     bionic/libc/private \
                     $(call include-path-for, libhardware_legacy)/hardware_legacy \
 
-LOCAL_CFLAGS += -Werror=format
+LOCAL_CFLAGS += -Werror=format -DPATH_IPSEC_H=\"netinet/ipsec.h\"
 
 LOCAL_SHARED_LIBRARIES := libstlport libsysutils liblog libcutils libnetutils \
                           libcrypto libhardware_legacy libmdnssd libdl \
                           liblogwrap
 
+LOCAL_STATIC_LIBRARIES := libipsec
 
 include $(BUILD_EXECUTABLE)
 
@@ -115,7 +117,7 @@ LOCAL_MODULE:= ndc
 
 LOCAL_C_INCLUDES := $(KERNEL_HEADERS)
 
-LOCAL_CFLAGS := 
+LOCAL_CFLAGS :=
 
 LOCAL_SHARED_LIBRARIES := libcutils
 

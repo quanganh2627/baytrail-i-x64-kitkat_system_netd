@@ -40,6 +40,9 @@
 #include "oem_iptables_hook.h"
 #include "NetdConstants.h"
 #include "FirewallController.h"
+#include "IpSecController.h"
+
+#define STRBUF_LEN 8
 
 TetherController *CommandListener::sTetherCtrl = NULL;
 NatController *CommandListener::sNatCtrl = NULL;
@@ -52,6 +55,7 @@ ResolverController *CommandListener::sResolverCtrl = NULL;
 SecondaryTableController *CommandListener::sSecondaryTableCtrl = NULL;
 FirewallController *CommandListener::sFirewallCtrl = NULL;
 ClatdController *CommandListener::sClatdCtrl = NULL;
+IpSecController *CommandListener::sIpSecCtrl = NULL;
 
 /**
  * List of module chains to be created, along with explicit ordering. ORDERING
@@ -145,6 +149,7 @@ CommandListener::CommandListener(UidMarkMap *map) :
     registerCmd(new ResolverCmd());
     registerCmd(new FirewallCmd());
     registerCmd(new ClatdCmd());
+    registerCmd(new IpSecCmd());
 
     if (!sSecondaryTableCtrl)
         sSecondaryTableCtrl = new SecondaryTableController(map);
@@ -168,6 +173,8 @@ CommandListener::CommandListener(UidMarkMap *map) :
         sInterfaceCtrl = new InterfaceController();
     if (!sClatdCtrl)
         sClatdCtrl = new ClatdController();
+    if (!sIpSecCtrl)
+        sIpSecCtrl = new IpSecController();
 
     /*
      * This is the only time we touch top-level chains in iptables; controllers
@@ -1429,6 +1436,85 @@ int CommandListener::IdletimerControlCmd::runCommand(SocketClient *cli, int argc
     }
 
     cli->sendMsg(ResponseCode::CommandSyntaxError, "Unknown idletimer cmd", false);
+    return 0;
+}
+
+CommandListener::IpSecCmd::IpSecCmd() :
+    NetdCommand("ipsec") {
+}
+
+int CommandListener::IpSecCmd::runCommand(SocketClient *cli, int argc, char **argv) {
+    if (argc < 2) {
+        cli->sendMsg(ResponseCode::CommandSyntaxError, "Missing argument", false);
+        return 0;
+    }
+
+    ALOGV("ipsec: argc=%d %s %s ...", argc, argv[0], argv[1]);
+
+    if (!strcmp(argv[1], "addsp")) {
+        int rule;
+        if (argc != 11) {
+            cli->sendMsg(ResponseCode::CommandSyntaxError, "Wrong number of arguments", false);
+            return 0;
+        }
+
+        rule = sIpSecCtrl->addSP(argv[2], atoi(argv[3]), argv[4], atoi(argv[5]), argv[6], argv[7], argv[8], argv[9], atol(argv[10]));
+        if (rule == 0) {
+            cli->sendMsg(ResponseCode::OperationFailed, "Failed to add IPsec SP entry", false);
+        } else {
+            char ruleId[STRBUF_LEN];
+            snprintf(ruleId, sizeof(ruleId), "%d", rule);
+            cli->sendMsg(ResponseCode::CommandOkay, ruleId, false);
+        }
+        return 0;
+    } else if (!strcmp(argv[1], "addsa")) {
+        int rule;
+        if (argc != 12) {
+            cli->sendMsg(ResponseCode::CommandSyntaxError, "Wrong number of arguments", false);
+            return 0;
+        }
+        rule = sIpSecCtrl->addSA(argv[2], argv[3], argv[4], argv[5],
+                argv[6], argv[7], atoi(argv[8]), argv[9], argv[10], atol(argv[11]));
+        if (rule == 0) {
+            cli->sendMsg(ResponseCode::OperationFailed, "Failed to add IPsec SA entry", false);
+        } else {
+            char ruleId[STRBUF_LEN];
+            snprintf(ruleId, STRBUF_LEN, "%d", rule);
+            cli->sendMsg(ResponseCode::CommandOkay, ruleId, false);
+        }
+        return 0;
+    } else if (!strcmp(argv[1], "delsp")) {
+        int rule;
+        if (argc == 3) {
+            rule = sIpSecCtrl->removeSP(atoi(argv[2]));
+        } else {
+            cli->sendMsg(ResponseCode::CommandSyntaxError, "Wrong number of arguments", false);
+            return 0;
+        }
+        if (rule == 0) {
+            cli->sendMsg(ResponseCode::OperationFailed, "Failed to apply ipsec rule", false);
+        } else {
+            char ruleId[STRBUF_LEN];
+            snprintf(ruleId, sizeof(ruleId), "%d", rule);
+            cli->sendMsg(ResponseCode::CommandOkay, ruleId, false);
+        }
+        return 0;
+    } else if (!strcmp(argv[1], "delsa")) {
+        int rule;
+        if (argc != 7) {
+            cli->sendMsg(ResponseCode::CommandSyntaxError, "Wrong number of arguments", false);
+            return 0;
+        }
+        rule = sIpSecCtrl->removeSA(argv[2], argv[3], atoi(argv[4]), argv[5], argv[6]);
+        if (rule == 0) {
+            cli->sendMsg(ResponseCode::OperationFailed, "Failed to delete IPsec SA Entry", false);
+        } else {
+            cli->sendMsg(ResponseCode::CommandOkay, "Deleted IPsec SA Entry", false);
+        }
+        return 0;
+    }
+
+    cli->sendMsg(ResponseCode::CommandSyntaxError, "Unknown ipsec cmd", false);
     return 0;
 }
 

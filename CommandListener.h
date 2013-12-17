@@ -32,6 +32,7 @@
 #include "FirewallController.h"
 #include "ClatdController.h"
 #include "UidMarkMap.h"
+#include "IpSecController.h"
 
 class CommandListener : public FrameworkListener {
     static TetherController *sTetherCtrl;
@@ -45,6 +46,7 @@ class CommandListener : public FrameworkListener {
     static SecondaryTableController *sSecondaryTableCtrl;
     static FirewallController *sFirewallCtrl;
     static ClatdController *sClatdCtrl;
+    static IpSecController *sIpSecCtrl;
 
 public:
     CommandListener(UidMarkMap *map);
@@ -98,6 +100,13 @@ private:
     public:
         PppdCmd();
         virtual ~PppdCmd() {}
+        int runCommand(SocketClient *c, int argc, char ** argv);
+    };
+
+    class IpSecCmd : public NetdCommand {
+    public:
+        IpSecCmd();
+        virtual ~IpSecCmd() {}
         int runCommand(SocketClient *c, int argc, char ** argv);
     };
 

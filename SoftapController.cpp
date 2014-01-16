@@ -226,8 +226,8 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
 
     asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
             "wlan1\nssid=%s\nchannel=%d\n"
-            "hw_mode=%s\nignore_broadcast_ssid=%d\n",
-             argv[2], argv[3], channel, hw_mode,hidden);
+            "hw_mode=%s\nieee80211n=%d\nignore_broadcast_ssid=%d\n",
+             argv[2], argv[3], channel, hw_mode,n_support,hidden);
 
     if (argc > 7) {
         if (!strcmp(argv[6], "wpa-psk")) {

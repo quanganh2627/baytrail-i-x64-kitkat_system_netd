@@ -262,6 +262,11 @@ int SoftapController::fwReloadSoftap(int argc, char *argv[])
     char *fwpath = NULL;
     char *iface;
 
+#ifdef NO_FW_RELOAD_FOR_SOFTAP
+    ALOGD("SoftAP skip FW reload");
+    return 0;
+#endif
+
     if (argc < 4) {
         ALOGE("SoftAP fwreload is missing arguments. Please use: softap <wlan iface> <AP|P2P|STA>");
         return ResponseCode::CommandSyntaxError;

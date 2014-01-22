@@ -44,6 +44,7 @@ struct algo_types {
 
 struct algo_types g_ealgos[] = {
         {"twofish-cbc", SADB_X_EALG_TWOFISHCBC},
+        {"aes-cbc", SADB_X_EALG_AESCBC},
         {"3des-cbc", SADB_EALG_3DESCBC},
         {"null", SADB_EALG_NULL},
         {"none", 0},
@@ -353,7 +354,7 @@ int IpSecController::addSP(const char *src, int srcport, const char *dst, int ds
         char addresses[sizeof(struct sockaddr_storage) * 2];
     } policy;
 
-    ALOGD("%s[%d] %s[%d] %s %s %s %lu\n", src, srcport, dst, dstport, protocol, mode, dir, time);
+    ALOGD("AddSP %s[%d] %s[%d] %s %s %s %lu\n", src, srcport, dst, dstport, protocol, mode, dir, time);
     /* Fill values for outbound policy. */
     memset(&policy, 0, sizeof(policy));
     policy.p.sadb_x_policy_exttype = SADB_X_EXT_POLICY;

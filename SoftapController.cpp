@@ -161,16 +161,28 @@ bool SoftapController::isSoftapStarted() {
  *  argv[5] - Channel
  *  argv[6] - Security
  *  argv[7] - Key
+ *  argv[8] - Preamble
+ *  argv[9] - Max SCB
+ *  argv[10] - hw_mode
+ *  argv[11] - ieee80211n
+ *  argv[12] - country
  */
 int SoftapController::setSoftap(int argc, char *argv[]) {
     char psk_str[2*SHA256_DIGEST_LENGTH+1];
     int ret = ResponseCode::SoftapStatusResult;
     int i = 0;
     int fd;
+    char *hw_mode, *country;
+    int n_support;
     int hidden = 0;
     int channel = AP_CHANNEL_DEFAULT;
     char *wbuf = NULL;
     char *fbuf = NULL;
+
+    ALOGD("setsoftap arg count %d, args", argc);
+    for (int j = 0; j < argc; j++)
+        ALOGD("%s", argv[j]);
+    ALOGD("------");
 
     if (argc < 5) {
         ALOGE("Softap set is missing arguments. Please use:");
@@ -191,12 +203,31 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
         channel = atoi(ap_channel_s);
     }
 
+    if (argc > 10) {
+        hw_mode = argv[10];
+    } else {
+        if (channel < 36)
+            hw_mode = (char*)"g";
+        else
+            hw_mode = (char*)"a";
+    }
+
+    if (argc > 11) {
+        n_support = atoi(argv[11]);
+    } else
+        n_support = 1;
+
+    if (argc > 12) {
+        country = argv[12];
+    } else
+        country = (char *)"00";
+
 
 
     asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
             "wlan1\nssid=%s\nchannel=%d\n"
-            "hw_mode=g\nignore_broadcast_ssid=%d\n",
-            argv[2], argv[3], channel, hidden);
+            "hw_mode=%s\nignore_broadcast_ssid=%d\n",
+             argv[2], argv[3], channel, hw_mode,hidden);
 
     if (argc > 7) {
         if (!strcmp(argv[6], "wpa-psk")) {
@@ -215,6 +246,8 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
     } else {
         asprintf(&fbuf, "%s", wbuf);
     }
+
+    ALOGD("hostapd.conf\n%s\n-----", fbuf);
 
     fd = open(HOSTAPD_CONF_FILE, O_CREAT | O_TRUNC | O_WRONLY | O_NOFOLLOW, 0660);
     if (fd < 0) {
@@ -346,7 +379,9 @@ int SoftapController::create_socket(const char *name, int type, mode_t perm, uid
     freecon(secon);
 #endif
     chown(addr.sun_path, uid, gid);
-    chmod(addr.sun_path, perm);
+    if ( chmod(addr.sun_path, perm) < 0 ) {
+         ALOGE("chmod error : %d\n",errno);
+    }
 
     ALOGD("Created socket '%s' with mode '%o', user '%d', group '%d'\n",
          addr.sun_path, perm, uid, gid);

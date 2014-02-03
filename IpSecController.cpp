@@ -92,7 +92,7 @@ struct sockaddr *str2saddr(const char *host, const char *port)
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_flags = AI_NUMERICHOST;
     error = getaddrinfo(host, port, &hints, &res);
-    if (error != 0) {
+    if (error != 0 || res == NULL) {
        ALOGE("getaddrinfo(%s%s%s): %s\n",
                host, port ? "," : "", port ? port : "", gai_strerror(error));
         return NULL;
@@ -191,7 +191,16 @@ int IpSecController::addSA(const char *src, const char *dst,
     }
 
     srcAddr = str2saddr(src, NULL);
+    if (srcAddr == NULL) {
+        ALOGE("Error parsing source address (%s)", src);
+        return 0;
+    }
     dstAddr = str2saddr(dst, NULL);
+    if (dstAddr == NULL) {
+        ALOGE("Error parsing destination address(%s)", dst);
+        free(srcAddr);
+        return 0;
+    }
 
     ALOGD("Addresses : src : %s dst : %s", src, dst);
 
@@ -294,7 +303,16 @@ int IpSecController::removeSA(const char *src, const char *dst, int spi, const c
     }
 
     srcAddr = str2saddr(src, NULL);
+    if (srcAddr == NULL) {
+        ALOGE("Error parsing source address (%s)", src);
+        return 0;
+    }
     dstAddr = str2saddr(dst, NULL);
+    if (dstAddr == NULL) {
+        ALOGE("Error parsing destination address(%s)", dst);
+        free(srcAddr);
+        return 0;
+    }
 
     ALOGD("Addresses : src : %s dst : %s", src, dst);
     ALOGD("SPI: %d", spi);
@@ -370,10 +388,21 @@ int IpSecController::addSP(const char *src, int srcport, const char *dst, int ds
 
     char srcPortStr[8];
     char dstPortStr[8];
+
     snprintf(srcPortStr, sizeof(srcPortStr), "%d", srcport);
     snprintf(dstPortStr, sizeof(dstPortStr), "%d", dstport);
+
     srcAddr = str2saddr(src, srcPortStr);
+    if (srcAddr == NULL) {
+        ALOGE("Error parsing source address (%s)", src);
+        return 0;
+    }
     dstAddr = str2saddr(dst, dstPortStr);
+    if (dstAddr == NULL) {
+        ALOGE("Error parsing destination address(%s)", dst);
+        free(srcAddr);
+        return 0;
+    }
     int src_prefix = (srcAddr->sa_family == AF_INET) ? 32 : 128;
     int dst_prefix = src_prefix; //Either all IPV4 or IPV6
     int length = 0;
@@ -407,7 +436,7 @@ int IpSecController::addSP(const char *src, int srcport, const char *dst, int ds
         goto out;
     }
 
-    /* Set outbound policy. */
+    /* Set policy. */
     result = pfkey_send_spdadd(key, srcAddr, src_prefix, dstAddr, dst_prefix, l_proto,
             (caddr_t)&policy, length, mSeq++);
     if (result <= 0) {

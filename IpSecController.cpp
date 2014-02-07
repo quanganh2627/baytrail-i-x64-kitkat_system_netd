@@ -344,7 +344,8 @@ int IpSecController::removeSA(const char *src, const char *dst, int spi, const c
             msg->sadb_msg_errno);
     if (msg->sadb_msg_errno != 0){
             ALOGE("Problem with IPSEC pfkey_send_delete: %d", msg->sadb_msg_errno);
-            return 0;
+            spi = 0;
+            goto out;
     }
 
 out:
@@ -494,5 +495,6 @@ int IpSecController::removeSP(int spi) {
     ret = pfkey_send_spddelete2(so, spi);
 
     ALOGD("spddelete2 returns %d\n", ret);
+    pfkey_close(so);
     return ret;
 }

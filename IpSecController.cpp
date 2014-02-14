@@ -128,16 +128,15 @@ int getAlgoNumeric(struct algo_types * t, const char *str) {
 }
 
 IpSecController::IpSecController()  {
-    mReqId = 1;
     mSeq = 1;
 }
 
 IpSecController::~IpSecController() {
 }
 
-int IpSecController::addSA(const char *src, const char *dst,
+int IpSecController::addSA(const char *src, int srcPort, const char *dst, int dstPort,
         const char *ealgo, const char *eKey, const char *aalgo, const char *aKey,
-        int spi, const char *type, const char *mode, long time) {
+        int spi, const char *type, const char *mode, long time, int reqid) {
 
     int result;
     struct sadb_msg *msg = NULL;
@@ -189,13 +188,17 @@ int IpSecController::addSA(const char *src, const char *dst,
         ALOGE("Mode not supported / implemented %s", mode);
         return 0;
     }
+    char strsrcport[8];
+    char strdstport[8];
 
-    srcAddr = str2saddr(src, NULL);
+    snprintf(strsrcport, sizeof(strsrcport), "%d", srcPort);
+    snprintf(strdstport, sizeof(strdstport), "%d", dstPort);
+    srcAddr = str2saddr(src, strsrcport);
     if (srcAddr == NULL) {
         ALOGE("Error parsing source address (%s)", src);
         return 0;
     }
-    dstAddr = str2saddr(dst, NULL);
+    dstAddr = str2saddr(dst, strdstport);
     if (dstAddr == NULL) {
         ALOGE("Error parsing destination address(%s)", dst);
         free(srcAddr);
@@ -237,7 +240,7 @@ int IpSecController::addSA(const char *src, const char *dst,
         goto out;
     }
     result = pfkey_send_add(so, l_type, l_mode, srcAddr, dstAddr,
-                            htonl(spi), mReqId, wsize, keymat, e_type, e_keylen, a_type, a_keylen,
+                            htonl(spi), reqid, wsize, keymat, e_type, e_keylen, a_type, a_keylen,
                             flags, l_alloc, l_bytes, l_addtime, l_usetime, mSeq++);
     ALOGD("send_add result: %d", result);
     if (result == -1){
@@ -358,14 +361,13 @@ out:
 
 int IpSecController::addSP(const char *src, int srcport, const char *dst, int dstport,
         const char *protocol, const char *mode, const char *dir, const char *secProtocol,
-        long time)
+        long time, int reqid)
 {
     struct sockaddr *srcAddr = NULL;
     struct sockaddr *dstAddr = NULL;
     struct sadb_msg *msg = NULL;
     int ret = 0;
     int key = -1;
-    int t_seq;
 
     struct __attribute__((packed)) {
         struct sadb_x_policy p;
@@ -385,7 +387,12 @@ int IpSecController::addSP(const char *src, int srcport, const char *dst, int ds
     policy.q.sadb_x_ipsecrequest_proto = strcmp(secProtocol, "ah") ? IPPROTO_ESP : IPPROTO_AH;
     policy.q.sadb_x_ipsecrequest_mode =
             strcmp(mode, "tunnel") ? IPSEC_MODE_TRANSPORT : IPSEC_MODE_TUNNEL;
-    policy.q.sadb_x_ipsecrequest_level = IPSEC_LEVEL_REQUIRE;
+    if (reqid == 0) {
+        policy.q.sadb_x_ipsecrequest_level = IPSEC_LEVEL_REQUIRE;
+    } else {
+        policy.q.sadb_x_ipsecrequest_level = IPSEC_LEVEL_UNIQUE;
+        policy.q.sadb_x_ipsecrequest_reqid = reqid;
+    }
 
     char srcPortStr[8];
     char dstPortStr[8];
@@ -418,7 +425,7 @@ int IpSecController::addSP(const char *src, int srcport, const char *dst, int ds
     } else if (!strcmp(protocol, "udp")) {
         l_proto = IPPROTO_UDP;
     } else if (!strcmp(protocol, "any")) {
-        l_proto = IPPROTO_RAW;
+        l_proto = IPPROTO_IP;
     } else {
         ALOGE("Unknown protocol: %s", protocol);
         goto out;

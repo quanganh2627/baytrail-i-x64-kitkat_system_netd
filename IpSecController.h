@@ -22,13 +22,13 @@ public:
     IpSecController();
     virtual ~IpSecController();
 
-    int addSA(const char *src, const char*dst,
+    int addSA(const char *src, int srcPort, const char*dst, int dstPort,
             const char *ealgo, const char *eKey, const char *aalgo, const char * aKey,
-            int spi, const char *secProtocol, const char *mode, long time);
+            int spi, const char *secProtocol, const char *mode, long time, int reqid);
 
     int addSP(const char *src, int srcport, const char *dst, int dstport,
             const char *protocol, const char *mode, const char *dir, const char *secProtocol,
-            long time);
+            long time, int reqid);
 
     int removeSA(const char *src, const char *dst, int spi, const char *secProtocol,
             const char *mode);
@@ -37,7 +37,6 @@ public:
 
 private:
     int mSeq;
-    int mReqId;
 };
 
 #endif

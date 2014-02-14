@@ -1453,12 +1453,13 @@ int CommandListener::IpSecCmd::runCommand(SocketClient *cli, int argc, char **ar
 
     if (!strcmp(argv[1], "addsp")) {
         int rule;
-        if (argc != 11) {
+        if (argc != 12) {
             cli->sendMsg(ResponseCode::CommandSyntaxError, "Wrong number of arguments", false);
             return 0;
         }
 
-        rule = sIpSecCtrl->addSP(argv[2], atoi(argv[3]), argv[4], atoi(argv[5]), argv[6], argv[7], argv[8], argv[9], atol(argv[10]));
+        rule = sIpSecCtrl->addSP(argv[2], atoi(argv[3]), argv[4], atoi(argv[5]), argv[6], argv[7],
+                argv[8], argv[9], atol(argv[10]), atoi(argv[11]));
         if (rule == 0) {
             cli->sendMsg(ResponseCode::OperationFailed, "Failed to add IPsec SP entry", false);
         } else {
@@ -1469,12 +1470,13 @@ int CommandListener::IpSecCmd::runCommand(SocketClient *cli, int argc, char **ar
         return 0;
     } else if (!strcmp(argv[1], "addsa")) {
         int rule;
-        if (argc != 12) {
+        if (argc != 15) {
             cli->sendMsg(ResponseCode::CommandSyntaxError, "Wrong number of arguments", false);
             return 0;
         }
-        rule = sIpSecCtrl->addSA(argv[2], argv[3], argv[4], argv[5],
-                argv[6], argv[7], atoi(argv[8]), argv[9], argv[10], atol(argv[11]));
+        rule = sIpSecCtrl->addSA(argv[2], atoi(argv[3]), argv[4], atoi(argv[5]), argv[6], argv[7],
+                argv[8], argv[9], atoi(argv[10]), argv[11], argv[12], atol(argv[13]),
+                atoi(argv[14]));
         if (rule == 0) {
             cli->sendMsg(ResponseCode::OperationFailed, "Failed to add IPsec SA entry", false);
         } else {

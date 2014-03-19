@@ -163,21 +163,29 @@ bool SoftapController::isSoftapStarted() {
  *  argv[7] - Key
  *  argv[8] - Preamble
  *  argv[9] - Max SCB
- *  argv[10] - hw_mode
- *  argv[11] - ieee80211n
- *  argv[12] - country
+ *  argv[10] - channel width (HT20 HT40 or HT80)
+ *  argv[11] - country
  */
+#define HT20    "HT20"
+#define HT40    "HT40"
+#define HT80    "HT80"
+#define HT80P80 "HT80P80"
+#define HT160   "HT160"
 int SoftapController::setSoftap(int argc, char *argv[]) {
     char psk_str[2*SHA256_DIGEST_LENGTH+1];
     int ret = ResponseCode::SoftapStatusResult;
+    int aret = 0;
     int i = 0;
-    int fd;
+    int fd = 0;
     char *hw_mode, *country;
-    int n_support;
+    char *channel_width = NULL;
+    int ac_support = 0;
     int hidden = 0;
     int channel = AP_CHANNEL_DEFAULT;
     char *wbuf = NULL;
     char *fbuf = NULL;
+    char *hbuf = NULL;
+    char *vbuf = NULL;
 
     ALOGD("setsoftap arg count %d, args", argc);
     for (int j = 0; j < argc; j++)
@@ -204,48 +212,124 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
     }
 
     if (argc > 10) {
-        hw_mode = argv[10];
-    } else {
-        if (channel < 36)
-            hw_mode = (char*)"g";
-        else
-            hw_mode = (char*)"a";
-    }
+        channel_width = argv[10];
+        if (!strcmp(channel_width, HT80)) {
+            ac_support = 1;
+        }
+    } else
+        channel_width = (char*)HT20;
+
+    if (channel < 36)
+        hw_mode = (char*)"g";
+    else
+        hw_mode = (char*)"a";
 
     if (argc > 11) {
-        n_support = atoi(argv[11]);
-    } else
-        n_support = 1;
-
-    if (argc > 12) {
-        country = argv[12];
+        country = argv[11];
     } else
         country = (char *)"00";
 
 
 
-    asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
+    aret = asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
             "wlan1\nssid=%s\nchannel=%d\n"
-            "hw_mode=%s\nieee80211n=%d\nignore_broadcast_ssid=%d\n",
-             argv[2], argv[3], channel, hw_mode,n_support,hidden);
+            "hw_mode=%s\nieee80211n=1\nieee80211ac=%d\nignore_broadcast_ssid=%d\n",
+             argv[2], argv[3], channel, hw_mode, ac_support, hidden);
+
+    if (aret == -1)
+        goto error;
+
+    /* Set HT capabilities*/
+    if (!strcmp(channel_width, HT40) || ac_support) {
+        /* Supported channel width set: [HT40-] = both 20 MHz and 40 MHz with secondary
+         * channel below the primary channel; [HT40+] = both 20 MHz and 40 MHz
+         * with secondary channel below the primary channel
+         * (20 MHz only if neither is set)
+         * Note: There are limits on which channels can be used with HT40- and
+         * HT40+. Following table shows the channels that may be available for
+         * HT40- and HT40+ use per IEEE 802.11n Annex J:
+         * freq                HT40-                HT40+
+         * 2.4 GHz             5-13                 1-7 (1-9 in Europe/Japan)
+         * 5 GHz               40,48,56,64          36,44,52,60
+         * 5 GHz               153, 161             149, 157
+         * (depending on the location, not all of these channels may be available
+         * for use)
+         * Please note that 40 MHz channels may switch their primary and secondary
+         * channels if needed or creation of 40 MHz channel maybe rejected based
+         * on overlapping BSSes. These changes are done automatically when hostapd
+         * is setting up the 40 MHz channel.
+         */
+
+        /* Currently Broadcom only support 40Mhz on 5GHz band */
+        if ((channel == 36 )
+                || (channel == 44 )
+                || (channel == 52 )
+                || (channel == 60 )
+                || (channel == 149)
+                || (channel == 157)) {
+            aret = asprintf(&hbuf, "%sht_capab=[HT40+][SHORT-GI-20][SHORT-GI-40]\n", wbuf);
+        } else if ((channel == 40)
+                || (channel == 48)
+                || (channel == 56)
+                || (channel == 64)
+                || (channel == 153)
+                || (channel == 161)) {
+             aret = asprintf(&hbuf, "%sht_capab=[HT40-][SHORT-GI-20][SHORT-GI-40]\n", wbuf);
+        } else
+            aret = asprintf(&hbuf, "%s", wbuf);
+    } else
+        aret = asprintf(&hbuf, "%s", wbuf);
+
+    if (aret == -1)
+        goto error;
+
+    /* Set VHT capabilities if required */
+    if (ac_support == 1) {
+        /*
+         * ToDo: Proper computation of vht_oper_centr_freq_seg0_idx is required.
+         * Curently this has been found using FR and US country code.
+         * Could have more channel with other country code.
+         */
+        int vht_chan = 0;
+        if ((channel == 36)
+                || (channel == 40)
+                || (channel == 44)
+                || (channel == 48))
+            vht_chan = 42;
+        if (channel == 144)
+            vht_chan = 138;
+        if ((channel == 149)
+                || (channel == 153)
+                || (channel == 157)
+                || (channel == 161))
+            vht_chan = 155;
+        aret = asprintf(&vbuf, "%svht_oper_chwidth=1\nvht_oper_centr_freq_seg0_idx=%d\n"
+                        "vht_capab=[SHORT-GI-80]\n", hbuf, vht_chan);
+    } else
+        aret = asprintf(&vbuf, "%s", hbuf);
+
+    if (aret == -1)
+        goto error;
 
     if (argc > 7) {
         if (!strcmp(argv[6], "wpa-psk")) {
             generatePsk(argv[3], argv[7], psk_str);
-            asprintf(&fbuf, "%swpa=1\nwpa_pairwise=TKIP CCMP\nwpa_psk=%s\n", wbuf, psk_str);
+            aret = asprintf(&fbuf, "%swpa=1\nwpa_pairwise=TKIP CCMP\nwpa_psk=%s\n", vbuf, psk_str);
         } else if (!strcmp(argv[6], "wpa2-psk")) {
             generatePsk(argv[3], argv[7], psk_str);
-            asprintf(&fbuf, "%swpa=2\nrsn_pairwise=CCMP\nwpa_psk=%s\n", wbuf, psk_str);
+            aret = asprintf(&fbuf, "%swpa=2\nrsn_pairwise=CCMP\nwpa_psk=%s\n", vbuf, psk_str);
         } else if (!strcmp(argv[6], "open")) {
-            asprintf(&fbuf, "%s", wbuf);
+            aret = asprintf(&fbuf, "%s", vbuf);
         }
     } else if (argc > 6) {
         if (!strcmp(argv[6], "open")) {
-            asprintf(&fbuf, "%s", wbuf);
+            aret = asprintf(&fbuf, "%s", vbuf);
         }
-    } else {
-        asprintf(&fbuf, "%s", wbuf);
-    }
+    } else
+        aret = asprintf(&fbuf, "%s", vbuf);
+
+    if (aret == -1)
+        goto error;
 
     ALOGD("hostapd.conf\n%s\n-----", fbuf);
 
@@ -254,14 +338,24 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
         ALOGE("Cannot update \"%s\": %s", HOSTAPD_CONF_FILE, strerror(errno));
         free(wbuf);
         free(fbuf);
+        free(hbuf);
+        free(vbuf);
         return ResponseCode::OperationFailed;
     }
     if (write(fd, fbuf, strlen(fbuf)) < 0) {
         ALOGE("Cannot write to \"%s\": %s", HOSTAPD_CONF_FILE, strerror(errno));
         ret = ResponseCode::OperationFailed;
     }
+error:
     free(wbuf);
     free(fbuf);
+    free(hbuf);
+    free(vbuf);
+    if (aret == -1) {
+        close(fd);
+        unlink(HOSTAPD_CONF_FILE);
+        return ResponseCode::OperationFailed;
+    }
 
     /* Note: apparently open can fail to set permissions correctly at times */
     if (fchmod(fd, 0660) < 0) {
@@ -294,11 +388,6 @@ int SoftapController::fwReloadSoftap(int argc, char *argv[])
     int i = 0;
     char *fwpath = NULL;
     char *iface;
-
-#ifdef NO_FW_RELOAD_FOR_SOFTAP
-    ALOGD("SoftAP skip FW reload");
-    return 0;
-#endif
 
     if (argc < 4) {
         ALOGE("SoftAP fwreload is missing arguments. Please use: softap <wlan iface> <AP|P2P|STA>");

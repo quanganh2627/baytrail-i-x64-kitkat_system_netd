@@ -33,6 +33,7 @@
 #include "ClatdController.h"
 #include "UidMarkMap.h"
 #include "IpSecController.h"
+#include "DongleController.h"
 
 class CommandListener : public FrameworkListener {
     static TetherController *sTetherCtrl;
@@ -47,6 +48,7 @@ class CommandListener : public FrameworkListener {
     static FirewallController *sFirewallCtrl;
     static ClatdController *sClatdCtrl;
     static IpSecController *sIpSecCtrl;
+    static DongleController *sDongleCtrl;
 
 public:
     CommandListener(UidMarkMap *map);
@@ -149,6 +151,13 @@ private:
     public:
         ClatdCmd();
         virtual ~ClatdCmd() {}
+        int runCommand(SocketClient *c, int argc, char ** argv);
+    };
+
+    class DongleCmd : public NetdCommand {
+    public:
+        DongleCmd();
+        virtual ~DongleCmd() {}
         int runCommand(SocketClient *c, int argc, char ** argv);
     };
 };

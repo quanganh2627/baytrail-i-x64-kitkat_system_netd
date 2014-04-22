@@ -35,6 +35,10 @@ public:
                    struct in_addr remote, struct in_addr dns1,
                    struct in_addr dns2);
     int detachPppd(const char *tty);
+
+    int startPppd(int argc, char *argv[]);
+    int stopPppd(const char *tty);
+
     TtyCollection *getTtyList();
 
 private:

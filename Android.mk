@@ -27,6 +27,7 @@ LOCAL_SRC_FILES:=                                      \
                   ResolverController.cpp               \
                   SecondaryTableController.cpp         \
                   TetherController.cpp                 \
+                  DongleController.cpp                 \
                   oem_iptables_hook.cpp                \
                   UidMarkMap.cpp                       \
                   main.cpp                             \
@@ -79,6 +80,7 @@ LOCAL_SRC_FILES:=                                      \
                   ResolverController.cpp               \
                   SecondaryTableController.cpp         \
                   TetherController.cpp                 \
+                  DongleController.cpp                 \
                   IpSecController.cpp                  \
                   oem_iptables_hook.cpp                \
                   UidMarkMap.cpp                       \

@@ -56,6 +56,7 @@ SecondaryTableController *CommandListener::sSecondaryTableCtrl = NULL;
 FirewallController *CommandListener::sFirewallCtrl = NULL;
 ClatdController *CommandListener::sClatdCtrl = NULL;
 IpSecController *CommandListener::sIpSecCtrl = NULL;
+DongleController * CommandListener::sDongleCtrl = NULL;
 
 /**
  * List of module chains to be created, along with explicit ordering. ORDERING
@@ -148,6 +149,7 @@ CommandListener::CommandListener(UidMarkMap *map) :
     registerCmd(new FirewallCmd());
     registerCmd(new ClatdCmd());
     registerCmd(new IpSecCmd());
+    registerCmd(new DongleCmd());
 
     if (!sSecondaryTableCtrl)
         sSecondaryTableCtrl = new SecondaryTableController(map);
@@ -173,6 +175,8 @@ CommandListener::CommandListener(UidMarkMap *map) :
         sClatdCtrl = new ClatdController();
     if (!sIpSecCtrl)
         sIpSecCtrl = new IpSecController();
+    if (!sDongleCtrl)
+        sDongleCtrl = new DongleController();
 
     /*
      * This is the only time we touch top-level chains in iptables; controllers
@@ -879,6 +883,10 @@ int CommandListener::PppdCmd::runCommand(SocketClient *cli,
         rc = sPppCtrl->attachPppd(argv[2], l, r, dns1, dns2);
     } else if (!strcmp(argv[1], "detach")) {
         rc = sPppCtrl->detachPppd(argv[2]);
+    } else if (!strcmp(argv[1], "start")) {
+        rc = sPppCtrl->startPppd(argc, argv);
+    } else if (!strcmp(argv[1], "stop")) {
+        rc = sPppCtrl->stopPppd(argv[2]);
     } else {
         cli->sendMsg(ResponseCode::CommandSyntaxError, "Unknown pppd cmd", false);
         return 0;
@@ -1661,6 +1669,41 @@ int CommandListener::ClatdCmd::runCommand(SocketClient *cli, int argc,
         cli->sendMsg(ResponseCode::CommandOkay, "Clatd operation succeeded", false);
     } else {
         cli->sendMsg(ResponseCode::OperationFailed, "Clatd operation failed", false);
+    }
+
+    return 0;
+}
+
+
+CommandListener::DongleCmd::DongleCmd() :
+                 NetdCommand("dongle") {
+}
+
+int CommandListener::DongleCmd::runCommand(SocketClient *cli,
+                                                      int argc, char **argv) {
+    int rc = 0;
+
+    if (argc < 3) {
+        cli->sendMsg(ResponseCode::CommandSyntaxError, "Missing argument", false);
+        return 0;
+    }
+
+    if (!strcmp(argv[1], "switch")) {
+        rc = sDongleCtrl->switchUsbMode(atoi(argv[2]), atoi(argv[3]));
+    } else if (!strcmp(argv[1], "suspend")) {
+        rc = sDongleCtrl->setUsbAutoSuspendMode(atoi(argv[2]));
+    } else if (!strcmp(argv[1], "suspendW32")) {
+        rc = sDongleCtrl->switchW32UsbMode(atoi(argv[2]));
+
+    } else {
+        cli->sendMsg(ResponseCode::CommandSyntaxError, "Unknown dongle cmd", false);
+        return 0;
+    }
+
+    if (!rc) {
+        cli->sendMsg(ResponseCode::CommandOkay, "Dongle operation succeeded", false);
+    } else {
+        cli->sendMsg(ResponseCode::OperationFailed, "Dongle operation failed", true);
     }
 
     return 0;

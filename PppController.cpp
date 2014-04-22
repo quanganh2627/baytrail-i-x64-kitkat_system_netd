@@ -117,6 +117,105 @@ int PppController::detachPppd(const char *tty) {
     return 0;
 }
 
+/**
+ * pppd
+ * start
+ * tty
+ * dial
+ * user
+ * pass
+ * apn
+ * pin
+ */
+int PppController::startPppd(int argc, char *argv[]) {
+    if (argc < 8) {
+        LOGE("Start pppd - missing arguments");
+        return -1;
+    }
+
+    LOGD("Start pppd %s - %s - %s - %s - %s - %s",
+            argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+
+    if (mPid) {
+        LOGE("Multiple PPPD instances not currently supported");
+        errno = EBUSY;
+        return -1;
+    }
+
+    updateTtyList();
+
+    const char *tty = argv[2];
+
+    TtyCollection::iterator it;
+    for (it = mTtys->begin(); it != mTtys->end(); ++it) {
+        if (!strcmp(tty, *it)) {
+            break;
+        }
+    }
+    if (it == mTtys->end()) {
+        LOGE("Invalid tty '%s' specified", tty);
+        errno = -EINVAL;
+        return -1;
+    }
+
+    pid_t pid;
+    if ((pid = fork()) < 0) {
+        LOGE("fork failed (%s)", strerror(errno));
+        return -1;
+    }
+
+    if (!pid) {
+        char dev[32];
+        const char *dial = argv[3];
+        const char *user = argv[4];
+        const char *pass = argv[5];
+        const char *apn = argv[6];
+        const char *pin = argv[7];
+
+        snprintf(dev, sizeof(dev), "/dev/%s", tty);
+        setenv("DONGLEDIAL", dial, 1);
+        setenv("DONGLEFUN", "AT+CFUN=1", 1);
+
+        if (strcmp(apn, "*") == 0) {
+            setenv("DONGLEAPN", "AT", 1);
+        } else {
+            char apnstr[64];
+            snprintf(apnstr, sizeof(apnstr), "AT+CGDCONT=1,\"IP\",\"%s\"", apn);
+            setenv("DONGLEAPN", apnstr, 1);
+        }
+
+        if (strcmp(user, "*") == 0) {
+            if (execl("/system/bin/pppd", "/system/bin/pppd", "-detach", dev, "115200", "debug",
+                        "mtu", "1440", "defaultroute", "usepeerdns", "novj", "novjccomp", "noipdefault",
+                        "noaccomp", "ipcp-accept-local", "ipcp-accept-remote", "connect-delay", "5000",
+                        "ipcp-max-failure", "60", "ipcp-max-configure", "60", "connect",
+                        "/system/xbin/chat -E -s -v -f /etc/ppp/connect-chat",  (char *) NULL)) {
+                LOGE("execl failed (%s)", strerror(errno));
+            }
+        } else {
+            if (execl("/system/bin/pppd", "/system/bin/pppd", "-detach", dev, "115200", "debug",
+                        "user", user, "password", pass,
+                        "mtu", "1440", "defaultroute", "usepeerdns", "novj", "novjccomp", "noipdefault",
+                        "noaccomp", "ipcp-accept-local", "ipcp-accept-remote", "connect-delay", "5000",
+                        "ipcp-max-failure", "60", "ipcp-max-configure", "60", "connect",
+                        "/system/xbin/chat -E -s -v -f /etc/ppp/connect-chat",  (char *) NULL)) {
+                LOGE("execl failed (%s)", strerror(errno));
+            }
+        }
+
+        LOGE("Should never get here!");
+        return 0;
+    } else {
+        mPid = pid;
+    }
+
+    return 0;
+}
+
+int PppController::stopPppd(const char *tty) {
+    return detachPppd(tty);
+}
+
 TtyCollection *PppController::getTtyList() {
     updateTtyList();
     return mTtys;

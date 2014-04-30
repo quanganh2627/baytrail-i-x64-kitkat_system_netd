@@ -87,19 +87,19 @@ int DongleController::switchW32UsbMode(int mode) {
     }
 
     fpRF = fopen("/sys/class/gpio/gpio74/value", "rb+");
-    if (!fpRST) {
+    if (!fpRF) {
         LOGE("Updating Set W32USB mode failed gpio74 (%s)", strerror(errno));
         return -1;
     }
 
     fpPOWER = fopen("/sys/class/gpio/gpio113/value", "rb+");
-    if (!fpRST) {
+    if (!fpPOWER) {
         LOGE("Updating Set W32USB mode failed gpio113 (%s)", strerror(errno));
         return -1;
     }
 
     fpSWITCH = fopen("/sys/class/gpio/gpio45/value", "rb+");
-    if (!fpRST) {
+    if (!fpSWITCH) {
         LOGE("Updating Set W32USB mode failed gpio45 (%s)", strerror(errno));
         return -1;
     }

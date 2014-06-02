@@ -231,6 +231,49 @@ int SecondaryTableController::removeRoute(SocketClient *cli, char *iface, char *
     return modifyRoute(cli, DEL, iface, dest, prefix, gateway, tableIndex);
 }
 
+int SecondaryTableController::modifyFromRule(SocketClient *cli, const char *iface,
+        const char *action, const char *addr) {
+    int tableIndex = findTableNumber(iface);
+    int ret;
+
+    if (tableIndex == -1) {
+        if (!strcmp(action, ADD)) {
+            // No interface found for adding this route!
+            ALOGE("Interface not found");
+            errno = ENODEV;
+            cli->sendMsg(ResponseCode::OperationFailed, "Interface not found", true);
+            return -1;
+        } else {
+            // Interface could be down already so this is not an error...
+            ret = deleteFromRule(addr);
+        }
+    } else {
+        ret = modifyFromRule(tableIndex, action, addr);
+    }
+    if (ret) {
+        cli->sendMsg(ResponseCode::CommandOkay, "Rule modified", false);
+    } else {
+        cli->sendMsg(ResponseCode::CommandOkay, "Problem modifying rule", false);
+    }
+    return ret;
+}
+
+int SecondaryTableController::deleteFromRule(const char *addr) {
+    const char *cmd[] = {
+            IP_PATH,
+            getVersion(addr),
+            "rule",
+            DEL,
+            "from",
+            addr
+    };
+    if (runCmd(ARRAY_SIZE(cmd), cmd)) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int SecondaryTableController::modifyFromRule(int tableIndex, const char *action,
         const char *addr) {
     char tableIndex_str[11];

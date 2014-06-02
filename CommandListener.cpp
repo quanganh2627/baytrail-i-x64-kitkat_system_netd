@@ -272,6 +272,7 @@ int CommandListener::InterfaceCmd::runCommand(SocketClient *cli,
         }
 
         //     0       1       2        3          4           5        6      7
+        // interface rule  add/remove iface       src         addr
         // interface route add/remove iface default/secondary dest    prefix gateway
         // interface fwmark  rule  add/remove    iface
         // interface fwmark  route add/remove    iface        dest    prefix
@@ -639,6 +640,8 @@ int CommandListener::InterfaceCmd::runCommand(SocketClient *cli,
                         "Failed to get MTU", true);
             }
             return 0;
+        } else if (!strcmp(argv[1], "rule")) {
+            return sSecondaryTableCtrl->modifyFromRule(cli, argv[3], argv[2], argv[5]);
         } else {
             cli->sendMsg(ResponseCode::CommandSyntaxError, "Unknown interface cmd", false);
             return 0;

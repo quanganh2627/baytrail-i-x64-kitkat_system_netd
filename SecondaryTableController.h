@@ -42,7 +42,9 @@ public:
     int addRoute(SocketClient *cli, char *iface, char *dest, int prefixLen, char *gateway);
     int removeRoute(SocketClient *cli, char *iface, char *dest, int prefixLen, char *gateway);
     int findTableNumber(const char *iface);
+    int modifyFromRule(SocketClient *cli, const char *iface, const char *action, const char *addr);
     int modifyFromRule(int tableIndex, const char *action, const char *addr);
+    int deleteFromRule(const char *addr);
     int modifyLocalRoute(int tableIndex, const char *action, const char *iface, const char *addr);
     int addUidRule(const char *iface, int uid_start, int uid_end);
     int removeUidRule(const char *iface, int uid_start, int uid_end);

@@ -163,19 +163,10 @@ int SecondaryTableController::modifyRoute(SocketClient *cli, const char *action,
         ALOGE("ip route %s failed: %s route %s %s/%d via %s dev %s table %d", action,
                 IP_PATH, action, dest, prefix, gateway, iface, tableIndex+BASE_TABLE_NUMBER);
         errno = ENODEV;
-        mInterfaceTable[tableIndex][0] = 0;
         cli->sendMsg(ResponseCode::OperationFailed, "ip route modification failed", true);
         return -1;
     }
 
-    if (strcmp(action, ADD) == 0) {
-        mInterfaceRuleCount[tableIndex]++;
-    } else {
-        if (--mInterfaceRuleCount[tableIndex] < 1) {
-            mInterfaceRuleCount[tableIndex] = 0;
-            mInterfaceTable[tableIndex][0] = 0;
-        }
-    }
     modifyRuleCount(tableIndex, action);
     cli->sendMsg(ResponseCode::CommandOkay, "Route modified", false);
     return 0;

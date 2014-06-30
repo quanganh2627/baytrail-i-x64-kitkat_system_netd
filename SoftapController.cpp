@@ -34,6 +34,9 @@
 #include <openssl/sha.h>
 
 #define LOG_TAG "SoftapController"
+
+#include <hardware_legacy/power.h>
+
 #include <cutils/log.h>
 #include <cutils/properties.h>
 #include <netutils/ifc.h>
@@ -127,6 +130,8 @@ int SoftapController::startSoftap() {
     } else {
         mPid = pid;
         ALOGD("SoftAP started successfully");
+	ALOGD("startSoftap acquire_wake_lock");
+	acquire_wake_lock(PARTIAL_WAKE_LOCK, AP_WAKE_LOCK);
         usleep(AP_BSS_START_DELAY);
     }
     return ResponseCode::SoftapStatusResult;
@@ -145,6 +150,8 @@ int SoftapController::stopSoftap() {
 
     mPid = 0;
     ALOGD("SoftAP stopped successfully");
+    ALOGD("stopSoftap release_wake_lock");
+    release_wake_lock(AP_WAKE_LOCK);
     usleep(AP_BSS_STOP_DELAY);
     return ResponseCode::SoftapStatusResult;
 }

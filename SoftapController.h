@@ -27,6 +27,8 @@
 #define AP_DRIVER_START_DELAY	800000
 #define AP_CHANNEL_DEFAULT	6
 
+#define AP_WAKE_LOCK "hotspot_wake_lock"
+
 class SoftapController {
     int create_socket(const char *name, int type, mode_t perm,
                       uid_t uid, gid_t gid);

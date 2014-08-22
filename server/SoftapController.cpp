@@ -136,7 +136,7 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
     }
 
     asprintf(&wbuf, "interface=%s\ndriver=nl80211\nctrl_interface="
-            "/data/misc/wifi/hostapd\nssid=%s\nchannel=%d\nieee80211n=1\n"
+            "/data/misc/wifi/sockets\nssid=%s\nchannel=%d\nieee80211n=1\n"
             "hw_mode=g\nignore_broadcast_ssid=%d\nwowlan_triggers=any\n",
             argv[2], argv[3], channel, hidden);
 
@@ -200,6 +200,10 @@ int SoftapController::setSoftap(int argc, char *argv[]) {
  */
 int SoftapController::fwReloadSoftap(int argc, char *argv[])
 {
+#ifdef NO_FW_RELOAD_FOR_SOFTAP
+    ALOGD("Softap skip FW reload");
+    return 0;
+#else
     char *fwpath = NULL;
 
     if (argc < 4) {
@@ -224,6 +228,7 @@ int SoftapController::fwReloadSoftap(int argc, char *argv[])
         ALOGD("Softap fwReload - Ok");
     }
     return ResponseCode::SoftapStatusResult;
+#endif
 }
 
 void SoftapController::generatePsk(char *ssid, char *passphrase, char *psk_str) {

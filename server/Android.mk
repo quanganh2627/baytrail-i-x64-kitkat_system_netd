@@ -25,7 +25,11 @@ LOCAL_C_INCLUDES := \
         system/netd/include \
 
 LOCAL_CLANG := true
-LOCAL_CPPFLAGS := -std=c++11 -Wall -Werror
+LOCAL_CPPFLAGS := -std=c++11 -Wall -Werror=format
+ifeq ($(BOARD_USING_INTEL_IWL),true)
+ LOCAL_CFLAGS +=  \
+               -DNO_FW_RELOAD_FOR_SOFTAP
+endif
 LOCAL_MODULE := netd
 
 LOCAL_SHARED_LIBRARIES := \
@@ -73,6 +77,7 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 
 LOCAL_CFLAGS := -Wall -Werror
+
 LOCAL_CLANG := true
 LOCAL_MODULE := ndc
 LOCAL_SHARED_LIBRARIES := libcutils

@@ -100,7 +100,7 @@ bool TetherController::getIpFwdEnabled() {
     return (enabled  == '1' ? true : false);
 }
 
-#define TETHER_START_CONST_ARG        9
+#define TETHER_START_CONST_ARG        10
 
 int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
     if (mDaemonPid != 0) {
@@ -152,7 +152,8 @@ int TetherController::startTethering(int num_addrs, struct in_addr* addrs) {
         args[5] = (char *)"--dhcp-option-force=43,ANDROID_METERED";
         args[6] = (char *)"--pid-file";
         args[7] = (char *)"--dhcp-script=/system/bin/dhcp_lease_evt.sh";
-        args[8] = (char *)"";
+        args[8] = (char *)"-z";
+        args[9] = (char *)"";
 
         int nextArg = TETHER_START_CONST_ARG;
         for (int addrIndex=0; addrIndex < num_addrs;) {
